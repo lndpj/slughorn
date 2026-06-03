@@ -44,6 +44,7 @@ endif()
 option(SLUGHORN_SERIAL "Include serialization support (requires nlohmann)" OFF)
 option(SLUGHORN_NANOSVG "Include NanoSVG support (requires nanosvg)" OFF)
 option(SLUGHORN_FREETYPE "Include FreeType support (requires freetype2)" OFF)
+option(SLUGHORN_MSDF "Include MSDF support (requires msdfgen)" OFF)
 # option(SLUGHORN_GLFW "Include GLFW support (requires glfw3)" OFF)
 
 add_library(slughorn STATIC "slughorn/slughorn.cpp")
@@ -70,7 +71,7 @@ if(SLUGHORN_SERIAL)
 	add_subdirectory("ext/json")
 
 	target_compile_definitions(slughorn PRIVATE SLUGHORN_SERIAL_IMPLEMENTATION)
-	target_compile_definitions(slughorn PUBLIC  SLUGHORN_HAS_SERIAL)
+	target_compile_definitions(slughorn PUBLIC SLUGHORN_HAS_SERIAL)
 	target_link_libraries(slughorn PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
@@ -83,7 +84,7 @@ if(SLUGHORN_NANOSVG)
 	endif()
 
 	target_compile_definitions(slughorn PRIVATE SLUGHORN_NANOSVG_IMPLEMENTATION)
-	target_compile_definitions(slughorn PUBLIC  SLUGHORN_HAS_NANOSVG)
+	target_compile_definitions(slughorn PUBLIC SLUGHORN_HAS_NANOSVG)
 	target_include_directories(slughorn
 		PUBLIC
 			$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ext/nanosvg/src>
@@ -101,7 +102,7 @@ if(SLUGHORN_FREETYPE)
 	find_package(Freetype REQUIRED)
 
 	target_compile_definitions(slughorn PRIVATE SLUGHORN_FREETYPE_IMPLEMENTATION)
-	target_compile_definitions(slughorn PUBLIC  SLUGHORN_HAS_FREETYPE)
+	target_compile_definitions(slughorn PUBLIC SLUGHORN_HAS_FREETYPE)
 	# target_include_directories(slughorn
 	# 	PUBLIC
 	# 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -109,6 +110,36 @@ if(SLUGHORN_FREETYPE)
 	# 		$<INSTALL_INTERFACE:include>
 	# )
 	target_link_libraries(slughorn PUBLIC Freetype::Freetype)
+endif()
+
+# https://github.com/Chlumsky/msdfgen.git
+if(SLUGHORN_MSDF)
+	if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ext/msdfgen")
+		message(FATAL_ERROR
+			"ext/msdfgen not found. Run:\n"
+			"  git submodule update --init --recursive"
+		)
+	endif()
+
+	set(MSDFGEN_CORE_ONLY      ON  CACHE BOOL "" FORCE)
+	set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_VCPKG      OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_OPENMP     OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_SKIA       OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_DISABLE_SVG    OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_DISABLE_PNG    OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_DYNAMIC_RUNTIME OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_INSTALL        OFF CACHE BOOL "" FORCE)
+
+	add_subdirectory("ext/msdfgen")
+
+	# target_compile_definitions(slughorn PRIVATE SLUGHORN_MSDF_IMPLEMENTATION)
+	target_compile_definitions(slughorn PUBLIC SLUGHORN_HAS_MSDF)
+	target_include_directories(slughorn
+		PUBLIC
+			$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ext/msdfgen>
+	)
+	target_link_libraries(slughorn PUBLIC msdfgen-core)
 endif()
 
 # =============================================================================
@@ -258,38 +289,58 @@ if(SLUGHORN_BUILD_EXAMPLES)
 endif()
 
 # -----------------------------------------------------------------------------
-# userguide — builds doc/UserGuide.pdf via pandoc/xelatex
+# docs — builds doc/UserGuide.pdf and doc/WhatsNext.pdf via pandoc/xelatex
 #
-# Usage: cmake --build . --target userguide
+# Usage: cmake --build . --target docs
+#        cmake --build . --target userguide   (UserGuide only)
+#        cmake --build . --target whatsnext   (WhatsNext only)
 # -----------------------------------------------------------------------------
 find_program(PANDOC_EXECUTABLE pandoc)
 
 if(PANDOC_EXECUTABLE)
 	set(_DOC_DIR "${CMAKE_SOURCE_DIR}/doc")
-	set(_USERGUIDE_PDF "${_DOC_DIR}/UserGuide.pdf")
+
+	set(_PANDOC_FLAGS
+		--pdf-engine=xelatex
+		--number-sections
+		--highlight-style=breezedark
+		-H darkmode.tex
+		-V papersize:letter
+		-V geometry:margin=1in
+		-V fontsize=11pt
+		-V "mainfont=Source Serif 4"
+		-V "sansfont=Source Sans 3"
+		-V "monofont=Source Code Pro"
+		-V "monofontoptions=Scale=MatchLowercase"
+		-V booktabs=true
+	)
 
 	add_custom_target(userguide
 		COMMAND ${PANDOC_EXECUTABLE}
 			cover.md UserGuide.md
 			-o UserGuide.pdf
-			--pdf-engine=xelatex
-			--number-sections
-			--highlight-style=breezedark
-			-H darkmode.tex
-			-V papersize:letter
-			-V geometry:margin=1in
-			-V fontsize=11pt
-			-V "mainfont=Source Serif 4"
-			-V "sansfont=Source Sans 3"
-			-V "monofont=Source Code Pro"
-			-V "monofontoptions=Scale=MatchLowercase"
-			-V booktabs=true
+			${_PANDOC_FLAGS}
 		WORKING_DIRECTORY "${_DOC_DIR}"
-		BYPRODUCTS "${_USERGUIDE_PDF}"
+		BYPRODUCTS "${_DOC_DIR}/UserGuide.pdf"
 		COMMENT "Building UserGuide.pdf"
 		USES_TERMINAL
 		VERBATIM
 	)
+
+	add_custom_target(whatsnext
+		COMMAND ${PANDOC_EXECUTABLE}
+			whatsnext-cover.md WhatsNext.md
+			-o WhatsNext.pdf
+			${_PANDOC_FLAGS}
+		WORKING_DIRECTORY "${_DOC_DIR}"
+		BYPRODUCTS "${_DOC_DIR}/WhatsNext.pdf"
+		COMMENT "Building WhatsNext.pdf"
+		USES_TERMINAL
+		VERBATIM
+	)
+
+	add_custom_target(docs)
+	add_dependencies(docs userguide whatsnext)
 else()
-	message(STATUS "slughorn docs: pandoc not found, 'userguide' target unavailable")
+	message(STATUS "slughorn docs: pandoc not found, 'docs' target unavailable")
 endif()
