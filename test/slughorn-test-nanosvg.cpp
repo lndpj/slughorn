@@ -230,9 +230,9 @@ void test_Shape() {
 	atlas.addShape(1u, info);
 	atlas.build();
 
-	const slughorn::Atlas::Shape* s = atlas.getShape(1u);
+	const auto s = atlas.getShape(1u);
 
-	check("shape in atlas", s != nullptr);
+	check("shape in atlas", s.has_value());
 
 	if(s) {
 		std::cout << "  " << *s << std::endl;
@@ -408,11 +408,11 @@ void test_CompositeShape() {
 
 	for(size_t i = 0; i < composite.layers.size(); i++) {
 		const auto& layer = composite.layers[i];
-		const slughorn::Atlas::Shape* s = atlas.getShape(layer.key);
+		const auto s = atlas.getShape(layer.key);
 
 		std::cout << "\n  Layer " << i << ": " << layer << std::endl;
 
-		check("shape in atlas", s != nullptr);
+		check("shape in atlas", s.has_value());
 
 		if(!s) continue;
 

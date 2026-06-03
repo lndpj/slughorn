@@ -52,7 +52,7 @@ void test_Shape() {
 	atlas.addShape(1u, info);
 	atlas.build();
 
-	const slughorn::Atlas::Shape* shape = atlas.getShape(1u);
+	const auto shape = atlas.getShape(1u);
 
 	std::cout << std::endl << "=== Atlas::Shape ===" << std::endl;
 
@@ -136,7 +136,7 @@ void test_CompositeShape() {
 	std::cout << std::endl << "=== Atlas::CompositeShape ===" << std::endl;
 
 	for(const auto& layer : cs->layers) {
-		const slughorn::Atlas::Shape* shape = atlas.getShape(layer.key);
+		const auto shape = atlas.getShape(layer.key);
 
 		if(shape) {
 			std::cout << *shape << std::endl;

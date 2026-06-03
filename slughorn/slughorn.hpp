@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -794,12 +795,12 @@ public:
 	// Accessors (geometry valid after build(); composites valid any time after registration)
 	// --------------------------------------------------------------------------------------------
 
-	const Shape* getShape(Key key) const;
 	const CompositeShape* getCompositeShape(Key key) const;
 
-	// Returns em-space curves for a key, searching _shapes (post-build) then _build (pre-build).
-	// Works at any point in the build lifecycle. Returns nullptr if the key is not registered.
-	const Curves* getShapeCurves(Key key) const;
+	// Returns all info for a key — layout metrics, curves, origin — searching _shapes
+	// (post-build) then _build (pre-build). Works at any build lifecycle stage.
+	// Returns std::nullopt if the key is not registered.
+	std::optional<Shape> getShape(Key key) const;
 
 	// Returns em-space curves split into closed contours (outer outline, counters, etc.).
 	// Contour breaks are detected where p3 of curve[i] != p1 of curve[i+1].

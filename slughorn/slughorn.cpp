@@ -495,24 +495,19 @@ void Atlas::rasterizeGradients() {
 // Atlas::getShape
 // ================================================================================================
 
-const Atlas::Shape* Atlas::getShape(Key key) const {
-	const auto it = _shapes.find(key);
-
-	return it != _shapes.end() ? &it->second : nullptr;
-}
-
-// ================================================================================================
-// Atlas::getShapeCurves
-// ================================================================================================
-
-const Atlas::Curves* Atlas::getShapeCurves(Key key) const {
+std::optional<Atlas::Shape> Atlas::getShape(Key key) const {
 	const auto sit = _shapes.find(key);
 
-	if(sit != _shapes.end() && !sit->second.curves.empty()) return &sit->second.curves;
+	if(sit != _shapes.end()) return sit->second;
 
 	const auto bit = _build.find(key);
 
-	return bit != _build.end() ? &bit->second.curves : nullptr;
+	if(bit == _build.end()) return std::nullopt;
+
+	Shape s = bit->second.metrics;
+	s.curves = bit->second.curves;
+
+	return s;
 }
 
 // ================================================================================================
@@ -520,7 +515,8 @@ const Atlas::Curves* Atlas::getShapeCurves(Key key) const {
 // ================================================================================================
 
 Atlas::Contours Atlas::getShapeContours(Key key) const {
-	const Curves* flat = getShapeCurves(key);
+	const auto info = getShape(key);
+	const Curves* flat = info ? &info->curves : nullptr;
 
 	if(!flat || flat->empty()) return {};
 

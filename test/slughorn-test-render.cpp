@@ -61,7 +61,7 @@ static int runInMemory() {
 
 	// --- Circle ---
 	{
-		const auto* shape = atlas.getShape(Key("circle"));
+		const auto shape = atlas.getShape(Key("circle"));
 
 		assert(shape && "circle shape missing");
 		assert(!shape->curves.empty() && "circle Shape::curves should be populated after build()");
@@ -85,7 +85,7 @@ static int runInMemory() {
 
 	// --- Triangle ---
 	{
-		const auto* shape = atlas.getShape(Key("triangle"));
+		const auto shape = atlas.getShape(Key("triangle"));
 
 		assert(shape && "triangle shape missing");
 		assert(!shape->curves.empty() && "triangle Shape::curves should be populated after build()");

@@ -381,11 +381,11 @@ inline Sampler decode(
 );
 
 inline Sampler decode(const Atlas& atlas, Key key) {
-	const auto* shape = atlas.getShape(key);
+	const auto info = atlas.getShape(key);
 
-	if(!shape) throw std::out_of_range("Key not found in atlas (or atlas not built yet)");
+	if(!info) throw std::out_of_range("Key not found in atlas (or atlas not built yet)");
 
-	return decode(*shape, atlas.getCurveTextureData(), atlas.getBandTextureData());
+	return decode(*info, atlas.getCurveTextureData(), atlas.getBandTextureData());
 }
 
 inline Sampler decode(

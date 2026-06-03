@@ -14,8 +14,8 @@
 // slughorn.ShapeInfo (flat)
 // slughorn.Shape (flat, readonly)
 // slughorn.TextureData (flat, zero-copy memoryview)
-// slughorn.Atlas (add_shape, add_composite_shape, build, get_shape, get_composite_shape, has_key,
-// is_built property, curve_texture, band_texture)
+// slughorn.Atlas (add_shape, add_composite_shape, build, get_shape_info, get_composite_shape,
+// get_shape_contours, has_key, is_built property, curve_texture, band_texture)
 // slughorn.CurveDecomposer (owns its Curves internally - safe for Python GC)
 //
 // slughorn.emoji (submodule)
@@ -784,6 +784,18 @@ PYBIND11_MODULE(slughorn, m) {
 			py::arg("expand") = 0_cv,
 			"Compute the world-space bounding quad for this shape."
 		)
+		.def_property_readonly("curves",
+			[](const slughorn::Atlas::Shape& s) {
+				py::list result;
+
+				for(const auto& c : s.curves)
+					result.append(py::make_tuple(c.x1, c.y1, c.x2, c.y2, c.x3, c.y3));
+
+				return result;
+			},
+			"Em-space curves as a flat list of (x1,y1,x2,y2,x3,y3) tuples. "
+			"Valid at any build lifecycle stage when accessed via get_shape_info()."
+		)
 		.def("__repr__", [](const slughorn::Atlas::Shape& s) { return streamRepr(s); })
 	;
 
@@ -870,38 +882,17 @@ PYBIND11_MODULE(slughorn, m) {
 			"True after build() has been called."
 		)
 
-		.def("get_shape",
+		.def("get_shape_info",
 			[](const slughorn::Atlas& a, slughorn::Key key)
 				-> std::optional<slughorn::Atlas::Shape>
 			{
-				const auto* s = a.getShape(key);
-
-				if(!s) return std::nullopt;
-
-				return *s;
+				return a.getShape(key);
 			},
 			py::arg("key"),
-			"Return the Shape for key (valid after build()), or None if not found. "
-			"Accepts both Key objects and raw uint32_t codepoints."
-		)
-
-		.def("get_shape_curves",
-			[](const slughorn::Atlas& a, slughorn::Key key) -> py::object {
-				const auto* curves = a.getShapeCurves(key);
-
-				if(!curves) return py::none();
-
-				py::list result;
-
-				for(const auto& c : *curves)
-					result.append(py::make_tuple(c.x1, c.y1, c.x2, c.y2, c.x3, c.y3));
-
-				return result;
-			},
-			py::arg("key"),
-			"Return flat list of (x1,y1,x2,y2,x3,y3) curve tuples, or None if not found.\n"
-			"Works at any build lifecycle stage. Use when contour topology does not matter\n"
-			"(e.g. feeding a pixel rasterizer or the SDF pipeline)."
+			"Return a Shape with all info (metrics, curves, origin) for key, or None if not found.\n"
+			"Works at any build lifecycle stage — pre-build returns font metrics and em-space\n"
+			"curves; post-build also includes GPU band fields. Use get_shape_contours() to\n"
+			"retrieve curves split by closed contour."
 		)
 
 		.def("get_shape_contours",
