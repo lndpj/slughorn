@@ -869,7 +869,7 @@ PYBIND11_MODULE(slughorn, m) {
 			"When all shapes share the same advance (tabular/monospaced), the cell\n"
 			"width equals that advance. Otherwise the cell is the union bbox.\n\n"
 			"Only layout fields (bearing, width, height, advance) are updated.\n"
-			"Per-shape band transforms are left intact — required for\n"
+			"Per-shape band transforms are left intact - required for\n"
 			"setLayerShapeIndex cycling across shapes from different backends."
 		)
 
@@ -890,7 +890,7 @@ PYBIND11_MODULE(slughorn, m) {
 			},
 			py::arg("key"),
 			"Return a Shape with all info (metrics, curves, origin) for key, or None if not found.\n"
-			"Works at any build lifecycle stage — pre-build returns font metrics and em-space\n"
+			"Works at any build lifecycle stage - pre-build returns font metrics and em-space\n"
 			"curves; post-build also includes GPU band fields. Use get_shape_contours() to\n"
 			"retrieve curves split by closed contour."
 		)
@@ -914,7 +914,7 @@ PYBIND11_MODULE(slughorn, m) {
 			"Return list of contours; each contour is a list of (x1,y1,x2,y2,x3,y3) tuples.\n"
 			"Contour breaks are detected where p3 of curve[i] != p1 of curve[i+1].\n"
 			"Returns an empty list if the key is not found. Use when building paths for\n"
-			"stroking or filling — each contour must be handled independently."
+			"stroking or filling - each contour must be handled independently."
 		)
 
 		.def("get_composite_shape",
@@ -1013,6 +1013,64 @@ PYBIND11_MODULE(slughorn, m) {
 			"Decode a built shape into a Python-facing software-render view.\n"
 			"Returns a slughorn.render.Sampler."
 		)
+
+#ifdef SLUGHORN_HAS_MSDF
+		.def("render_sdf",
+			[](const slughorn::Atlas& a, slughorn::Key key, uint32_t tileSize, double range) {
+				const auto grid = slughorn::render::renderSDF(a, key, tileSize, range);
+
+				py::array_t<float> arr({
+					static_cast<py::ssize_t>(grid.height),
+					static_cast<py::ssize_t>(grid.width)
+				});
+
+				auto buf = arr.mutable_unchecked<2>();
+
+				for(uint32_t j = 0; j < grid.height; j++) {
+					for(uint32_t i = 0; i < grid.width; i++) {
+						buf(j, i) = grid.at(j, i);
+					}
+				}
+
+				return arr;
+			},
+			py::arg("key"),
+			py::arg("tile_size")=128,
+			py::arg("range")=0.1,
+			"Generate a single-channel SDF tile via msdfgen.\n"
+			"Returns a float32 ndarray of shape (H, W); edge pixels are ~0.5."
+		)
+
+		.def("render_msdf",
+			[](const slughorn::Atlas& a, slughorn::Key key, uint32_t tileSize, double range) {
+				const auto grid = slughorn::render::renderMSDF(a, key, tileSize, range);
+
+				py::array_t<float> arr({
+					static_cast<py::ssize_t>(grid.height),
+					static_cast<py::ssize_t>(grid.width),
+					static_cast<py::ssize_t>(3)
+				});
+
+				auto buf = arr.mutable_unchecked<3>();
+
+				for(uint32_t j = 0; j < grid.height; j++) {
+					for(uint32_t i = 0; i < grid.width; i++) {
+						for(uint32_t c = 0; c < 3; c++) {
+							buf(j, i, c) = grid.at(j, i, c);
+						}
+					}
+				}
+
+				return arr;
+			},
+			py::arg("key"),
+			py::arg("tile_size")=128,
+			py::arg("range")=0.1,
+			"Generate a multi-channel SDF tile via msdfgen.\n"
+			"Returns a float32 ndarray of shape (H, W, 3).\n"
+			"Reconstruct in shader: float sd = median(d.r, d.g, d.b);"
+		)
+#endif // SLUGHORN_HAS_MSDF
 
 		.def_static("compute_adaptive_splits",
 			[](const slughorn::Atlas::Curves& curves, int num_bands_x, int num_bands_y)
@@ -1838,7 +1896,7 @@ PYBIND11_MODULE(slughorn, m) {
 				py::arg("align_x") = slughorn::canvas::TextAlignX::Left,
 				"Stroke glyph outlines from s into the current composite.\n\n"
 				"Unlike text(), this tessellates each glyph's contours as stroked paths.\n"
-				"Must be called before atlas.build() — stroke shapes are registered via\n"
+				"Must be called before atlas.build() - stroke shapes are registered via\n"
 				"addShape() which is disabled post-build.\n\n"
 				"For fill+stroke in one CompositeShape, call stroke_text() first (outline\n"
 				"underneath), then text() (fill on top), then finalize().\n\n"
@@ -1852,7 +1910,7 @@ PYBIND11_MODULE(slughorn, m) {
 				&slughorn::canvas::Canvas::setAutoMetrics,
 				"When True (default), shapes use tight curve bbox for quad sizing and band "
 				"calibration. Set to False to keep curves in [0,1] canvas space with the full "
-				"unit square as both the layout extent and band spatial range — required for "
+				"unit square as both the layout extent and band spatial range - required for "
 				"artifact-free GPU tiling via fract(). Pair with layer.expand = 0."
 			)
 			.def_property_readonly("layer_count", &slughorn::canvas::Canvas::layerCount,

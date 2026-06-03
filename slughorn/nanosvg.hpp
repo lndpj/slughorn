@@ -139,7 +139,7 @@ Matrix loadShape(
 // Scale is always auto-computed as 1/image->width, normalizing the SVG canvas
 // to [0,1] em-space. Keys are allocated via @p keys (KeyIterator); on return
 // keys.counter is advanced past the last key used. Pass a named KeyIterator
-// (e.g. KeyIterator("logo")) to produce named keys like "logo_0", "logo_1", …
+// (e.g. KeyIterator("logo")) to produce named keys like "logo_0", "logo_1", ...
 //
 // Shapes with no solid fill are skipped with a warning to stderr.
 // ================================================================================================

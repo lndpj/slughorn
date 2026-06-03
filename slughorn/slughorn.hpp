@@ -850,7 +850,7 @@ public:
 
 	const CompositeShape* getCompositeShape(Key key) const;
 
-	// Returns all info for a key — layout metrics, curves, origin — searching _shapes
+	// Returns all info for a key - layout metrics, curves, origin - searching _shapes
 	// (post-build) then _build (pre-build). Works at any build lifecycle stage.
 	// Returns std::nullopt if the key is not registered.
 	std::optional<Shape> getShape(Key key) const;

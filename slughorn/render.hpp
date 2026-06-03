@@ -4,15 +4,16 @@
 // render.hpp - CPU-side Slug coverage emulator
 //
 // Mirrors the GPU fragment shader analytically, enabling:
-//   - Software rendering / visual validation without a GPU
-//   - SDF/MSDF tile generation (see buildSdfAtlas plan)
-//   - Post-build curve access for strokeText / glyphOutline
+//
+// - Software rendering / visual validation without a GPU
+// - SDF/MSDF tile generation (see buildSdfAtlas plan)
+// - Post-build curve access for strokeText / glyphOutline
 //
 // Usage:
 //
-//   slughorn::render::Sampler s = slughorn::render::decode(atlas, key);
-//   slughorn::render::Grid g   = s.renderGrid(128);
-//   // g.data is row-major float32: g.data[row * g.width + col]
+// slughorn::render::Sampler s = slughorn::render::decode(atlas, key);
+// slughorn::render::Grid g = s.renderGrid(128);
+// // g.data is row-major float32: g.data[row * g.width + col]
 //
 // decode() reads the packed curve/band textures produced by Atlas::build() and
 // Atlas::packTextures(). It can be called any time after packTextures() returns.
@@ -27,6 +28,10 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
+
+#ifdef SLUGHORN_HAS_MSDF
+#include <msdfgen.h>
+#endif
 
 namespace slughorn {
 namespace render {
@@ -67,6 +72,7 @@ struct Grid {
 struct Sampler {
 	Atlas::Shape shape;
 	Atlas::Curves curves;
+
 	std::vector<uint32_t> hbandOffsets;
 	std::vector<uint32_t> hbandIndices;
 	std::vector<uint32_t> vbandOffsets;
@@ -514,6 +520,165 @@ inline Sampler decode(
 
 	return out;
 }
+
+// ================================================================================================
+// MSDF support - only available when built with -DSLUGHORN_MSDF=ON
+// ================================================================================================
+
+#ifdef SLUGHORN_HAS_MSDF
+
+// Multi-channel SDF grid: 3 floats per pixel (R, G, B channels).
+// Reconstruct in shader: float sd = median(d.r, d.g, d.b);
+struct MSDFGrid {
+	uint32_t width = 0;
+	uint32_t height = 0;
+
+	std::vector<float> data; // row-major, 3 floats per pixel
+
+	float at(uint32_t row, uint32_t col, uint32_t ch) const {
+		return data[(row * width + col) * 3 + ch];
+	}
+};
+
+// Build an msdfgen::Shape from the atlas contours for key.
+// Coordinates are in em-space (same space as Atlas::Curves).
+// Returns an empty Shape if the key has no geometry.
+//
+// Slughorn's curve winding appears CW to msdfgen (Y-up, CCW=filled convention).
+// Each contour is reversed so that filled regions become CCW, then orientContours()
+// assigns the correct fill/hole role for compound shapes.
+inline msdfgen::Shape toMSDFShape(const Atlas& atlas, Key key) {
+	msdfgen::Shape shape;
+
+	for(const auto& contour : atlas.getShapeContours(key)) {
+		auto& c = shape.addContour();
+
+		// Each Atlas::Curve is a quadratic Bezier: p1=start, p2=off-curve, p3=end.
+		for(const auto& curve : contour) c.addEdge(msdfgen::EdgeHolder(
+			{curve.x1, curve.y1},
+			{curve.x2, curve.y2},
+			{curve.x3, curve.y3}
+		));
+
+		c.reverse();
+	}
+
+	if(!shape.contours.empty()) shape.orientContours();
+
+	return shape;
+}
+
+// Build the SDFTransformation for a shape + tile dimensions.
+// range is in em-space units: distance from edge that maps to 0.0 or 1.0 in the output.
+//
+// msdfgen Projection formula: pixel = scale * (shape + translate)
+// - unproject: shape = pixel/scale - translate
+// To map b.l (shape) -> 0 (pixel): 0 = scale*(b.l + translate) -> translate = -b.l
+// Translate is em-space, NOT pixel-space.
+inline msdfgen::SDFTransformation _msdfTransform(
+	const msdfgen::Shape::Bounds& b,
+	uint32_t tileW,
+	uint32_t tileH,
+	double range
+) {
+	const double bw = b.r - b.l;
+	const double bh = b.t - b.b;
+	const double scale = std::min(tileW / bw, tileH / bh);
+
+	const msdfgen::Projection proj({scale, scale}, {-b.l, -b.b});
+
+	// Distance mapping: [-range, range] em-units -> [0, 1]; edge pixel -> 0.5
+	const msdfgen::DistanceMapping dmap(msdfgen::Range(2.0 * range));
+
+	return {proj, dmap};
+}
+
+// Generate a single-channel SDF tile for the given key.
+// tileSize: longest axis in texels. range: em-space spread (e.g. 0.1 = 10% of shape).
+// Returns a Grid with values in [0, 1]; edge pixels are ~0.5.
+inline Grid renderSDF(
+	const Atlas& atlas,
+	Key key,
+	uint32_t tileSize=128,
+	double range=0.1
+) {
+	msdfgen::Shape msdfShape = toMSDFShape(atlas, key);
+
+	if(msdfShape.contours.empty()) {
+		return Grid{tileSize, tileSize, std::vector<slug_t>(tileSize * tileSize, 0_cv)};
+	}
+
+	const auto bounds = msdfShape.getBounds(range);
+	const double bw = bounds.r - bounds.l, bh = bounds.t - bounds.b;
+	const double scale = tileSize / std::max(bw, bh);
+	const auto tileW = static_cast<uint32_t>(std::max(1.0, std::round(bw * scale)));
+	const auto tileH = static_cast<uint32_t>(std::max(1.0, std::round(bh * scale)));
+
+	std::vector<float> buf(tileW * tileH);
+
+	msdfgen::BitmapSection<float, 1> bmp(buf.data(), static_cast<int>(tileW), static_cast<int>(tileH));
+	msdfgen::generateSDF(bmp, msdfShape, _msdfTransform(bounds, tileW, tileH, range));
+
+	// msdfgen is Y-up (row 0 = bottom); flip to Y-down (row 0 = top) for Grid.
+	// Values are clamped to [0, 1]: edge = 0.5, interior > 0.5, exterior < 0.5.
+	Grid grid{tileW, tileH, std::vector<slug_t>(tileW * tileH)};
+
+	for(uint32_t row = 0; row < tileH; row++) {
+		const uint32_t src = tileH - 1 - row;
+
+		for(uint32_t col = 0; col < tileW; col++) grid.data[row * tileW + col] = std::clamp(
+			buf[src * tileW + col],
+			0.f,
+			1.f
+		);
+	}
+
+	return grid;
+}
+
+// Generate a multi-channel SDF tile for the given key.
+// Returns an MSDFGrid with 3 floats per pixel; reconstruct with median(r,g,b) in shader.
+inline MSDFGrid renderMSDF(
+	const Atlas& atlas,
+	Key key,
+	uint32_t tileSize=128,
+	double range=0.1
+) {
+	msdfgen::Shape msdfShape = toMSDFShape(atlas, key);
+
+	if(msdfShape.contours.empty()) {
+		return MSDFGrid{tileSize, tileSize, std::vector<float>(tileSize * tileSize * 3, 0.f)};
+	}
+
+	msdfgen::edgeColoringSimple(msdfShape, 3.0);
+
+	const auto bounds = msdfShape.getBounds(range);
+	const double bw = bounds.r - bounds.l, bh = bounds.t - bounds.b;
+	const double scale = tileSize / std::max(bw, bh);
+	const auto tileW = static_cast<uint32_t>(std::max(1.0, std::round(bw * scale)));
+	const auto tileH = static_cast<uint32_t>(std::max(1.0, std::round(bh * scale)));
+
+	std::vector<float> buf(tileW * tileH * 3);
+	msdfgen::BitmapSection<float, 3> bmp(buf.data(), static_cast<int>(tileW), static_cast<int>(tileH));
+	msdfgen::generateMSDF(bmp, msdfShape, _msdfTransform(bounds, tileW, tileH, range));
+
+	// Flip Y
+	MSDFGrid grid{tileW, tileH, std::vector<float>(tileW * tileH * 3)};
+
+	for(uint32_t row = 0; row < tileH; row++) {
+		const uint32_t src = tileH - 1 - row;
+
+		for(uint32_t col = 0; col < tileW; col++) {
+			for(uint32_t ch = 0; ch < 3; ch++) {
+				grid.data[(row * tileW + col) * 3 + ch] = buf[(src * tileW + col) * 3 + ch];
+			}
+		}
+	}
+
+	return grid;
+}
+
+#endif
 
 }
 }

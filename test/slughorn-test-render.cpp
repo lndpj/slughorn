@@ -106,6 +106,57 @@ static int runInMemory() {
 		assert(center >= 0.5_cv && "triangle center should have high coverage");
 	}
 
+#ifdef SLUGHORN_HAS_MSDF
+	// --- Circle SDF (msdfgen path) ---
+	{
+		auto grid = slughorn::render::renderSDF(atlas, Key("circle"), 64);
+
+		assert(grid.width > 0 && grid.height > 0 && "renderSDF returned empty grid");
+
+		const slug_t center = grid.at(grid.height / 2, grid.width / 2);
+		const slug_t corner = grid.at(0, 0);
+
+		std::cout << "\ncircle SDF (" << grid.width << 'x' << grid.height << "):\n";
+		std::cout << " center=" << center << " corner=" << corner << '\n';
+
+		assert(center > 0.5_cv && "SDF circle center should be interior (> 0.5)");
+		assert(corner < 0.5_cv && "SDF circle corner should be exterior (< 0.5)");
+
+		std::cout << "Circle SDF checks passed.\n";
+	}
+
+	// --- Circle MSDF (msdfgen path) ---
+	{
+		auto grid = slughorn::render::renderMSDF(atlas, Key("circle"), 64);
+
+		assert(grid.width > 0 && grid.height > 0 && "renderMSDF returned empty grid");
+
+		// Reconstruct signed distance via median(r,g,b) — same as the shader.
+		auto median = [](float a, float b, float c) {
+			return std::max(std::min(a, b), std::min(std::max(a, b), c));
+		};
+
+		const float centerSd = median(
+			grid.at(grid.height / 2, grid.width / 2, 0),
+			grid.at(grid.height / 2, grid.width / 2, 1),
+			grid.at(grid.height / 2, grid.width / 2, 2)
+		);
+		const float cornerSd = median(
+			grid.at(0, 0, 0),
+			grid.at(0, 0, 1),
+			grid.at(0, 0, 2)
+		);
+
+		std::cout << "\ncircle MSDF (" << grid.width << 'x' << grid.height << "):\n";
+		std::cout << " center median=" << centerSd << " corner median=" << cornerSd << '\n';
+
+		assert(centerSd > 0.5f && "MSDF circle center median should be interior (> 0.5)");
+		assert(cornerSd < 0.5f && "MSDF circle corner median should be exterior (< 0.5)");
+
+		std::cout << "Circle MSDF checks passed.\n";
+	}
+#endif
+
 	std::cout << "\nAll in-memory render checks passed.\n";
 
 	return 0;
