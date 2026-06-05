@@ -59,12 +59,21 @@ static constexpr int LOG_NOTICE = 1;
 static constexpr int LOG_WARN = 2;
 
 // Passed to all load functions. Default construction is silent, non-uniform, no custom splitting.
+// Output fields are populated by the high-level load*Font wrappers (which manage their own
+// FT_Face lifetime). The face-taking overloads (loadGlyph, loadGlyphs, etc.) do not populate them.
 struct LoadConfig {
+	// Input fields (set these BEFORE)...
 	Atlas::SplitStrategy strategy = {};
 
 	LogCallback log = {};
 
 	bool uniform = false;
+
+	// Output fields (conditionally set, when possible)...
+	FontMetrics metrics = {};
+
+	std::string familyName;
+	std::string styleName;
 };
 
 // =============================================================================
@@ -114,7 +123,7 @@ bool loadGlyph(
 	FT_Face face,
 	uint32_t codepoint,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Convenience: load a contiguous range of codepoints [first, last]. Returns the number of glyphs
@@ -124,7 +133,7 @@ size_t loadGlyphRange(
 	uint32_t first,
 	uint32_t last,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Convenience: load an explicit list of Unicode codepoints. Returns the number of glyphs
@@ -133,7 +142,7 @@ size_t loadGlyphs(
 	FT_Face face,
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Convenience: iterate the face's full charmap and load every mapped codepoint. Returns the number
@@ -141,7 +150,7 @@ size_t loadGlyphs(
 size_t loadAllGlyphs(
 	FT_Face face,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // =============================================================================
@@ -166,7 +175,7 @@ bool loadColorGlyph(
 	FT_Color* palette,
 	Atlas& atlas,
 	CompositeShape& out,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Convenience: load a list of emoji codepoints. Populates colorGlyphs (keyed by codepoint) for
@@ -177,7 +186,7 @@ size_t loadColorGlyphs(
 	FT_Color* palette,
 	Atlas& atlas,
 	std::map<uint32_t, CompositeShape>& colorGlyphs,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // =============================================================================
@@ -189,7 +198,7 @@ size_t loadColorGlyphs(
 bool loadAsciiFont(
 	const std::string& fontPath,
 	Atlas& atlas,
-	const LoadConfig& config={});
+	LoadConfig* config=nullptr);
 
 // Load an explicit list of codepoints from @p fontPath into @p atlas. Creates and destroys an
 // FT_Library / FT_Face internally. Returns the number of glyphs successfully added.
@@ -197,7 +206,7 @@ size_t loadFontGlyphs(
 	const std::string& fontPath,
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Load every mapped codepoint from @p fontPath into @p atlas. Creates and destroys an
@@ -205,7 +214,7 @@ size_t loadFontGlyphs(
 size_t loadAllFontGlyphs(
 	const std::string& fontPath,
 	Atlas& atlas,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // Load COLR emoji from @p fontPath for the given codepoints. Creates and destroys an FT_Library /
@@ -215,7 +224,7 @@ bool loadEmojiFont(
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
 	std::map<uint32_t, CompositeShape>& colorGlyphs,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 }
@@ -289,16 +298,26 @@ static Result withFace(
 	const std::string& fontPath,
 	const char* caller,
 	Result failureValue,
-	const LoadConfig& config,
+	LoadConfig* config,
 	F&& fn
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
 	LibraryHandle library;
 
-	if(!library.init(caller, config.log)) return failureValue;
+	if(!library.init(caller, cfg.log)) return failureValue;
 
 	FaceHandle face;
 
-	if(!face.open(library.value, fontPath, caller, config.log)) return failureValue;
+	if(!face.open(library.value, fontPath, caller, cfg.log)) return failureValue;
+
+	if(config) {
+		config->metrics = readFontMetrics(face.value);
+
+		if(face.value->family_name) config->familyName = face.value->family_name;
+		if(face.value->style_name) config->styleName = face.value->style_name;
+	}
 
 	return std::forward<F>(fn)(face.value);
 }
@@ -1044,7 +1063,7 @@ std::optional<slughorn::FontMetrics> loadFontMetrics(const std::string& fontPath
 		fontPath,
 		"loadFontMetrics",
 		std::optional<slughorn::FontMetrics>{},
-		LoadConfig{},
+		nullptr,
 		[](FT_Face face) -> std::optional<slughorn::FontMetrics> {
 			return readFontMetrics(face);
 		}
@@ -1069,9 +1088,11 @@ bool decomposeGlyph(
 			matrix->apply(c.x1, c.y1, c.x1, c.y1);
 			matrix->apply(c.x2, c.y2, c.x2, c.y2);
 			matrix->apply(c.x3, c.y3, c.x3, c.y3);
+
 			out.curves.push_back(c);
 		}
 	}
+
 	else detail::decomposeOutline(face->glyph->outline, out.curves, emScale);
 
 	out.advance = advance;
@@ -1079,9 +1100,15 @@ bool decomposeGlyph(
 	return !out.curves.empty();
 }
 
-bool loadGlyph(FT_Face face, uint32_t codepoint, Atlas& atlas,
-	const LoadConfig& config
+bool loadGlyph(
+	FT_Face face,
+	uint32_t codepoint,
+	Atlas& atlas,
+	LoadConfig* config
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
 	if(atlas.hasKey(codepoint)) return true; // already present - not an error
 
 	const FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
@@ -1102,8 +1129,9 @@ bool loadGlyph(FT_Face face, uint32_t codepoint, Atlas& atlas,
 
 	detail::decomposeOutline(face->glyph->outline, data.curves, emScale);
 
-	if(config.strategy && !data.curves.empty()) {
-		auto [sx, sy] = config.strategy(data.curves);
+	if(cfg.strategy && !data.curves.empty()) {
+		auto [sx, sy] = cfg.strategy(data.curves);
+
 		data.splitsX = std::move(sx);
 		data.splitsY = std::move(sy);
 	}
@@ -1118,11 +1146,16 @@ size_t loadGlyphRange(
 	uint32_t first,
 	uint32_t last,
 	Atlas& atlas,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
-	if(config.uniform) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
+	if(cfg.uniform) {
 		std::vector<uint32_t> cps;
+
 		for(uint32_t cp = first; cp <= last; cp++) cps.push_back(cp);
+
 		return loadGlyphs(face, cps, atlas, config);
 	}
 
@@ -1135,9 +1168,12 @@ size_t loadGlyphs(
 	FT_Face face,
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
-	if(!config.uniform) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
+	if(!cfg.uniform) {
 		return detail::countCodepoints(codepoints, [&](uint32_t cp) {
 			return loadGlyph(face, cp, atlas, config);
 		});
@@ -1215,7 +1251,7 @@ size_t loadGlyphs(
 		}
 
 		doLog(
-			config.log, LOG_NOTICE,
+			cfg.log, LOG_NOTICE,
 			"loadGlyphsUniform: tabular advances detected, cell width=", refAdvance
 		);
 	}
@@ -1243,7 +1279,7 @@ size_t loadGlyphs(
 		cellWidth = maxRight - minLeft;
 
 		doLog(
-			config.log, LOG_NOTICE,
+			cfg.log, LOG_NOTICE,
 			"loadGlyphsUniform: non-tabular, union cell width=", cellWidth,
 			" (centering applied)"
 		);
@@ -1282,8 +1318,8 @@ size_t loadGlyphs(
 
 		if(!decomposeGlyph(face, emScale, cellAdvance, matrixPtr, data)) continue;
 
-		if(config.strategy && !data.curves.empty()) {
-			auto [sx, sy] = config.strategy(data.curves);
+		if(cfg.strategy && !data.curves.empty()) {
+			auto [sx, sy] = cfg.strategy(data.curves);
 
 			data.splitsX = std::move(sx);
 			data.splitsY = std::move(sy);
@@ -1298,8 +1334,11 @@ size_t loadGlyphs(
 	// -- end loadGlyphsUniform (inlined) --
 }
 
-size_t loadAllGlyphs(FT_Face face, Atlas& atlas, const LoadConfig& config) {
-	if(config.uniform) {
+size_t loadAllGlyphs(FT_Face face, Atlas& atlas, LoadConfig* config) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
+	if(cfg.uniform) {
 		std::vector<uint32_t> cps;
 
 		detail::countCharmap(face, [&](uint32_t cp) { cps.push_back(cp); return true; });
@@ -1318,12 +1357,14 @@ bool loadColorGlyph(
 	FT_Color* palette,
 	Atlas& atlas,
 	CompositeShape& out,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
 	const FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
 
 	if(!glyphIndex) {
-		doLog(config.log, LOG_WARN, "U+", std::hex, codepoint, " not found in font");
+		doLog(cfg.log, LOG_WARN, "U+", std::hex, codepoint, " not found in font");
 
 		return false;
 	}
@@ -1341,11 +1382,11 @@ bool loadColorGlyph(
 #if FREETYPE_MAJOR > 2 || (FREETYPE_MAJOR == 2 && FREETYPE_MINOR >= 11)
 
 	{
-		detail::processColorGlyphV1(face, codepoint, palette, atlas, out, config);
+		detail::processColorGlyphV1(face, codepoint, palette, atlas, out, cfg);
 
 		if(!out.layers.empty()) {
 			doLog(
-				config.log, LOG_NOTICE,
+				cfg.log, LOG_NOTICE,
 				"loaded COLRv1 U+",
 				std::hex, codepoint,
 				std::dec, " (", out.layers.size(), " layers)"
@@ -1360,11 +1401,11 @@ bool loadColorGlyph(
 	// -------------------------------------------------------------------------
 	// Fall back to COLRv0
 	// -------------------------------------------------------------------------
-	detail::processColorGlyphV0(face, codepoint, palette, atlas, out, config);
+	detail::processColorGlyphV0(face, codepoint, palette, atlas, out, cfg);
 
 	if(!out.layers.empty()) {
 		doLog(
-			config.log, LOG_NOTICE,
+			cfg.log, LOG_NOTICE,
 			"loaded COLRv0 U+",
 			std::hex, codepoint,
 			std::dec, " (", out.layers.size(), " layers)"
@@ -1382,7 +1423,7 @@ size_t loadColorGlyphs(
 	FT_Color* palette,
 	Atlas& atlas,
 	std::map<uint32_t, CompositeShape>& colorGlyphs,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
 	return detail::countCodepoints(codepoints, [&](uint32_t cp) {
 		CompositeShape glyph;
@@ -1397,8 +1438,10 @@ size_t loadColorGlyphs(
 	});
 }
 
-bool loadAsciiFont(const std::string& fontPath, Atlas& atlas,
-	const LoadConfig& config
+bool loadAsciiFont(
+	const std::string& fontPath,
+	Atlas& atlas,
+	LoadConfig* config
 ) {
 	return detail::withFace(fontPath, "loadAsciiFont", false, config, [&](FT_Face face) {
 		loadGlyphRange(face, 32, 126, atlas, config);
@@ -1411,7 +1454,7 @@ size_t loadFontGlyphs(
 	const std::string& fontPath,
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
 	return detail::withFace(fontPath, "loadFontGlyphs", size_t(0), config, [&](FT_Face face) {
 		return loadGlyphs(face, codepoints, atlas, config);
@@ -1421,7 +1464,7 @@ size_t loadFontGlyphs(
 size_t loadAllFontGlyphs(
 	const std::string& fontPath,
 	Atlas& atlas,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
 	return detail::withFace(fontPath, "loadAllFontGlyphs", size_t(0), config, [&](FT_Face face) {
 		return loadAllGlyphs(face, atlas, config);
@@ -1433,7 +1476,7 @@ bool loadEmojiFont(
 	const std::vector<uint32_t>& codepoints,
 	Atlas& atlas,
 	std::map<uint32_t, CompositeShape>& colorGlyphs,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
 	return detail::withFace(fontPath, "loadEmojiFont", false, config, [&](FT_Face face) {
 		auto* palette = detail::selectPalette(face);

@@ -86,7 +86,16 @@ namespace nanosvg {
 using LogCallback = std::function<void(int level, const std::string& msg)>;
 
 struct LoadConfig {
+	// Input fields.
 	LogCallback log = {};
+
+	// Output fields.
+	//
+	// Populated by loadImage/loadFile/loadString after a successful parse.
+	// widthEm is always 1.0 (the normalization convention); heightEm = height / width.
+	slug_t width = 0.0f;
+	slug_t height = 0.0f;
+	slug_t heightEm = 0_cv;
 };
 
 // ================================================================================================
@@ -163,7 +172,7 @@ CompositeShape loadImage(
 	const NSVGimage* image,
 	Atlas& atlas,
 	KeyIterator& keys,
-	const LoadConfig& config={}
+	LoadConfig* config=nullptr
 );
 
 // ================================================================================================
@@ -173,16 +182,16 @@ CompositeShape loadFile(
 	const std::string& path,
 	Atlas& atlas,
 	KeyIterator& keys,
-	float dpi=96.0f,
-	const LoadConfig& config={}
+	slug_t dpi=96_cv,
+	LoadConfig* config=nullptr
 );
 
 CompositeShape loadString(
 	const std::string& svg,
 	Atlas& atlas,
 	KeyIterator& keys,
-	float dpi=96.0f,
-	const LoadConfig& config={}
+	slug_t dpi=96_cv,
+	LoadConfig* config=nullptr
 );
 
 }
@@ -270,7 +279,7 @@ std::pair<Atlas::ShapeInfo, Matrix> decomposePath(const NSVGshape* shape, slug_t
 	for(const NSVGpath* path : paths) {
 		if(path->npts < 4) continue;
 
-		const float* p = path->pts;
+		const slug_t* p = path->pts;
 
 		const slug_t startX = cv(p[0]) * scale - minX;
 		const slug_t startY = cv(p[1]) * scale - minY;
@@ -336,19 +345,28 @@ CompositeShape loadImage(
 	const NSVGimage* image,
 	Atlas& atlas,
 	KeyIterator& keys,
-	const LoadConfig& config
+	LoadConfig* config
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
 	CompositeShape composite;
 
 	if(!image) return composite;
 
 	if(image->width <= 0.0f) {
-		warn(config, 2, "loadImage: image width is zero, cannot normalize");
+		warn(cfg, 2, "loadImage: image width is zero, cannot normalize");
 
 		return composite;
 	}
 
 	const slug_t scale = 1_cv / cv(image->width);
+
+	if(config) {
+		config->width = image->width;
+		config->height = image->height;
+		config->heightEm = cv(image->height) / cv(image->width);
+	}
 
 	// Normalized width is always 1.0...
 	composite.advance = 1_cv;
@@ -359,7 +377,7 @@ CompositeShape loadImage(
 		// ---- Unsupported feature checks ----
 
 		if(shape->stroke.type != NSVG_PAINT_NONE)
-			warn(config, 1,
+			warn(cfg, 1,
 				"stroke paint is not supported (shape id=\"",
 				shape->id, "\"); strokes are silently skipped"
 			);
@@ -386,7 +404,7 @@ CompositeShape loadImage(
 			NSVGgradient* g = shape->fill.gradient;
 
 			if(!g || g->nstops == 0) {
-				warn(config, 1, "skipping gradient with no stops (shape id=\"", shape->id, "\")");
+				warn(cfg, 1, "skipping gradient with no stops (shape id=\"", shape->id, "\")");
 
 				continue;
 			}
@@ -409,7 +427,8 @@ CompositeShape loadImage(
 			//
 			// Gradient endpoints are shifted into local em-space to match _toLocalOrigin() applied
 			// to the path curves in decomposePath.
-			float fwd[6];
+			slug_t fwd[6];
+
 			nsvg__xformInverse(fwd, g->xform);
 
 			const slug_t minX_em = cv(shape->bounds[0]) * scale;
@@ -421,7 +440,7 @@ CompositeShape loadImage(
 			if(shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT) {
 				// In NanoSVG's convention, the gradient t-axis is the second
 				// column of the forward transform: (0,0) -> start, (0,1) - end.
-				float px0, py0, px1, py1;
+				slug_t px0, py0, px1, py1;
 
 				nsvg__xformPoint(&px0, &py0, 0.0f, 0.0f, fwd);
 				nsvg__xformPoint(&px1, &py1, 0.0f, 1.0f, fwd);
@@ -435,7 +454,7 @@ CompositeShape loadImage(
 
 			else {
 				// Center is at the origin of the forward transform.
-				float pcx, pcy;
+				slug_t pcx, pcy;
 
 				nsvg__xformPoint(&pcx, &pcy, 0.0f, 0.0f, fwd);
 
@@ -448,11 +467,11 @@ CompositeShape loadImage(
 				// 2x2 matrix A (row-major): [[fwd[0], fwd[2]], [fwd[1], fwd[3]]]
 				// In em-space: A_em = A * scale_f
 				// B = A_em^{-1} maps em-space deltas to gradient space; length(B*d)=1 at outer ellipse.
-				const float scale_f = float(scale);
-				const float det = fwd[0] * fwd[3] - fwd[2] * fwd[1];
+				const slug_t scale_f = cv(scale);
+				const slug_t det = fwd[0] * fwd[3] - fwd[2] * fwd[1];
 
 				if(std::abs(det) < 1e-10f) {
-					warn(config, 1,
+					warn(cfg, 1,
 						"degenerate radial gradient transform, skipping (shape id=\"",
 						shape->id, "\")"
 					);
@@ -460,12 +479,12 @@ CompositeShape loadImage(
 					continue;
 				}
 
-				const float invSDet = 1.0f / (scale_f * det);
+				const slug_t invSDet = 1.0f / (scale_f * det);
 
-				float b00 = fwd[3] * invSDet; // B[0,0]
-				float b01 = -fwd[2] * invSDet; // B[0,1]
-				float b10 = -fwd[1] * invSDet; // B[1,0]
-				float b11 = fwd[0] * invSDet; // B[1,1]
+				slug_t b00 = fwd[3] * invSDet; // B[0,0]
+				slug_t b01 = -fwd[2] * invSDet; // B[0,1]
+				slug_t b10 = -fwd[1] * invSDet; // B[1,0]
+				slug_t b11 = fwd[0] * invSDet; // B[1,1]
 
 				// Ensure b11 > 0 for the shader discriminator (w > 0 == radial).
 				// Negating the whole matrix is safe: length(B*d) == length(-B*d).
@@ -476,13 +495,13 @@ CompositeShape loadImage(
 				// rx= r * sw, ry = r * sh.
 				// Correct B_correct = diag(sl / sw, sl / sh) * B_current.
 				if(g->units == NSVG_OBJECT_SPACE) {
-					const float sw_px = shape->bounds[2] - shape->bounds[0];
-					const float sh_px = shape->bounds[3] - shape->bounds[1];
+					const slug_t sw_px = shape->bounds[2] - shape->bounds[0];
+					const slug_t sh_px = shape->bounds[3] - shape->bounds[1];
 
 					if(sw_px > 0.0f && sh_px > 0.0f) {
-						const float sl_px = sqrtf(sw_px * sw_px + sh_px * sh_px) / sqrtf(2.0f);
-						const float kx = sl_px / sw_px;
-						const float ky = sl_px / sh_px;
+						const slug_t sl_px = sqrtf(sw_px * sw_px + sh_px * sh_px) / sqrtf(2.0f);
+						const slug_t kx = sl_px / sw_px;
+						const slug_t ky = sl_px / sh_px;
 
 						b00 *= kx; b01 *= kx;
 						b10 *= ky; b11 *= ky;
@@ -504,7 +523,7 @@ CompositeShape loadImage(
 			continue;
 		}
 		else {
-			warn(config, 1,
+			warn(cfg, 1,
 				"skipping unsupported fill type ",
 				static_cast<int>(shape->fill.type),
 				" (shape id=\"", shape->id, "\")"
@@ -536,13 +555,16 @@ CompositeShape loadFile(
 	const std::string& path,
 	Atlas& atlas,
 	KeyIterator& keys,
-	float dpi,
-	const LoadConfig& config
+	slug_t dpi,
+	LoadConfig* config
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
 	NSVGimage* image = nsvgParseFromFile(path.c_str(), "px", dpi);
 
 	if(!image) {
-		warn(config, 2, "loadFile: failed to parse '", path, "'");
+		warn(cfg, 2, "loadFile: failed to parse '", path, "'");
 
 		return {};
 	}
@@ -558,15 +580,18 @@ CompositeShape loadString(
 	const std::string& svg,
 	Atlas& atlas,
 	KeyIterator& keys,
-	float dpi,
-	const LoadConfig& config
+	slug_t dpi,
+	LoadConfig* config
 ) {
+	static const LoadConfig dflt{};
+	const LoadConfig& cfg = config ? *config : dflt;
+
 	std::string buf = svg;
 
 	NSVGimage* image = nsvgParse(buf.data(), "px", dpi);
 
 	if(!image) {
-		warn(config, 2, "loadString: failed to parse SVG");
+		warn(cfg, 2, "loadString: failed to parse SVG");
 
 		return {};
 	}
