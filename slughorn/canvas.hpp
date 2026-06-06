@@ -97,6 +97,10 @@ public:
 
 	Path(): _decomposer(_activeCurves) {}
 
+	explicit Path(Atlas::Curves curves):
+	_pendingCurves(std::move(curves)),
+	_decomposer(_activeCurves) {}
+
 	// Custom copy/move needed: CurveDecomposer.curves is a reference that must stay
 	// bound to THIS object's _activeCurves, not the source's.
 

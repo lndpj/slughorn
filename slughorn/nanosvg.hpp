@@ -73,9 +73,11 @@ SLUGHORN_IGNORE("-Wsign-conversion")
 SLUGHORN_DIAGNOSTIC_POP()
 
 #include <functional>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace slughorn {
 namespace nanosvg {
@@ -85,9 +87,35 @@ namespace nanosvg {
 // ================================================================================================
 using LogCallback = std::function<void(int level, const std::string& msg)>;
 
+// Controls how a matched ShapeRule overrides default load behavior.
+enum class ShapePolicy : uint32_t {
+	Default = 0,
+	ForceInclude = 1 << 0, // include even if paint type is unsupported
+	ForceExclude = 1 << 1, // exclude even if paint type is supported
+	GeometryOnly = 1 << 2, // add curves to atlas but omit from CompositeShape layers
+};
+
+inline ShapePolicy operator|(ShapePolicy a, ShapePolicy b) {
+	return static_cast<ShapePolicy>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+}
+
+inline bool operator&(ShapePolicy a, ShapePolicy b) {
+	return static_cast<uint32_t>(a) & static_cast<uint32_t>(b);
+}
+
+// Matches SVG shape ids against a regex and applies a policy override.
+// Rules are evaluated in order; the first match wins.
+struct ShapeRule {
+	std::regex id;
+
+	ShapePolicy policy = ShapePolicy::Default;
+};
+
 struct LoadConfig {
 	// Input fields.
 	LogCallback log = {};
+
+	std::vector<ShapeRule> rules;
 
 	// Output fields.
 	//
@@ -230,12 +258,21 @@ static void warn(const LoadConfig& config, int level, const Args&... args) {
 	}
 }
 
+// ================================================================================================
+// findRule - internal helper
+// ================================================================================================
+static const ShapeRule* findRule(const LoadConfig& cfg, const char* id) {
+	for(const auto& rule : cfg.rules) if(std::regex_match(id, rule.id)) return &rule;
+
+	return nullptr;
+}
+
 // Ray-cast a horizontal ray rightward from (px, py) against curves[0..end).
 // Each curve is approximated as a line segment (x1,y1)->(x3,y3) - exact for
 // rectangles and polygons, a good-enough approximation for smooth shapes.
 // Returns the number of crossings; odd = point is inside the accumulated paths.
-static int rayCrossings(const Atlas::Curves& curves, size_t end, slug_t px, slug_t py) {
-	int count = 0;
+static size_t rayCrossings(const Atlas::Curves& curves, size_t end, slug_t px, slug_t py) {
+	size_t count = 0;
 
 	for(size_t i = 0; i < end; i++) {
 		const auto& c = curves[i];
@@ -244,7 +281,7 @@ static int rayCrossings(const Atlas::Curves& curves, size_t end, slug_t px, slug
 		if((c.y1 <= py) == (c.y3 <= py)) continue;
 
 		// X coordinate of the segment at y = py.
-		const slug_t t  = (py - c.y1) / (c.y3 - c.y1);
+		const slug_t t = (py - c.y1) / (c.y3 - c.y1);
 		const slug_t xi = c.x1 + t * (c.x3 - c.x1);
 
 		if(xi > px) count++;
@@ -374,22 +411,26 @@ CompositeShape loadImage(
 	for(const NSVGshape* shape = image->shapes; shape; shape = shape->next) {
 		if(!(shape->flags & NSVG_FLAGS_VISIBLE)) continue;
 
-		// ---- Unsupported feature checks ----
+		const ShapeRule* rule = findRule(cfg, shape->id);
+		const ShapePolicy policy = rule ? rule->policy : ShapePolicy::Default;
 
-		if(shape->stroke.type != NSVG_PAINT_NONE)
+		if(policy & ShapePolicy::ForceExclude) continue;
+
+		// Unsupported feature checks.
+		if(shape->stroke.type != NSVG_PAINT_NONE && !(policy & ShapePolicy::ForceInclude))
 			warn(cfg, 1,
 				"stroke paint is not supported (shape id=\"",
 				shape->id, "\"); strokes are silently skipped"
 			);
-
-		// ---- Fill color / gradient ----
 
 		// shape->opacity is a per-shape multiplier on top of fill alpha; bake it in here
 		// so the shader never needs to know about it.
 		const slug_t shapeOpacity = cv(shape->opacity);
 
 		Color color = { 1_cv, 1_cv, 1_cv, 1_cv };
+
 		uint32_t gradientId = 0;
+		bool geometryOnly = (policy & ShapePolicy::GeometryOnly);
 
 		if(shape->fill.type == NSVG_PAINT_COLOR) {
 			color = colorFromNSVG(shape->fill.color);
@@ -397,6 +438,7 @@ CompositeShape loadImage(
 
 			if(color.a < 1e-4_cv) continue;
 		}
+
 		else if(
 			shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT ||
 			shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT
@@ -519,31 +561,41 @@ CompositeShape loadImage(
 
 			gradientId = atlas.addGradient(info);
 		}
-		else if(shape->fill.type == NSVG_PAINT_NONE) {
-			continue;
-		}
-		else {
-			warn(cfg, 1,
-				"skipping unsupported fill type ",
-				static_cast<int>(shape->fill.type),
-				" (shape id=\"", shape->id, "\")"
-			);
 
-			continue;
+		else if(shape->fill.type == NSVG_PAINT_NONE) {
+			if(!(policy & ShapePolicy::ForceInclude)) continue;
+
+			geometryOnly = true;
+		}
+
+		else {
+			if(!(policy & ShapePolicy::ForceInclude)) {
+				warn(cfg, 1,
+					"skipping unsupported fill type ",
+					static_cast<int>(shape->fill.type),
+					" (shape id=\"", shape->id, "\")"
+				);
+
+				continue;
+			}
+
+			geometryOnly = true;
 		}
 
 		const Key key = (!keys.force && shape->id[0] != '\0') ? Key(shape->id) : keys.next();
 
 		Matrix transform = loadShape(shape, atlas, key, scale);
 
-		Layer layer;
+		if(geometryOnly) continue;
 
-		layer.key = key;
-		layer.color = color;
-		layer.gradientId = gradientId;
-		layer.transform = {.x = transform.dx, .y = transform.dy};
 		// layer.scale is intentionally not set - world sizing is the caller's
 		// responsibility. layer.scale remains at its default of 1.0.
+		Layer layer{
+			.key = key,
+			.color = color,
+			.transform = {.x = transform.dx, .y = transform.dy},
+			.gradientId = gradientId
+		};
 
 		composite.layers.push_back(layer);
 	}

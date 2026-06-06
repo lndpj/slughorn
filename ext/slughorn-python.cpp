@@ -1429,6 +1429,10 @@ PYBIND11_MODULE(slughorn, m) {
 
 			path
 				.def(py::init<>(), "Create an empty path with identity transform.")
+				.def(py::init<slughorn::Atlas::Curves>(), py::arg("curves"),
+					"Create a path pre-populated with curves from an Atlas shape.\n"
+					"Useful for sampling along SVG geometry: Path(atlas.get_shape(key).curves)."
+				)
 
 				// Path management
 				.def("clear", &Path::clear,
@@ -2024,7 +2028,7 @@ PYBIND11_MODULE(slughorn, m) {
 	// slughorn.emoji
 	// ============================================================================================
 	py::module_ emoji = m.def_submodule("emoji",
-		"Unicode 15.1 RGI emoji lookup table (973 single-codepoint entries).\n"
+		"Unicode 15.1 RGI emoji lookup table (974 single-codepoint entries).\n"
 		"Names are CLDR short names, lower-case, spaces replaced with underscores."
 	);
 
@@ -2076,7 +2080,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 	emoji.def("table_size",
 		&slughorn::emoji::tableSize,
-		"Return the number of entries in the lookup table (973 for Unicode 15.1)."
+		"Return the number of entries in the lookup table (974 for Unicode 15.1)."
 	);
 
 	// ============================================================================================
@@ -2229,15 +2233,39 @@ PYBIND11_MODULE(slughorn, m) {
 			"to pack several SVGs into one atlas without key collisions."
 		);
 
+		py::enum_<slughorn::nanosvg::ShapePolicy>(nanosvg, "ShapePolicy")
+			.value("Default", slughorn::nanosvg::ShapePolicy::Default)
+			.value("ForceInclude", slughorn::nanosvg::ShapePolicy::ForceInclude)
+			.value("ForceExclude", slughorn::nanosvg::ShapePolicy::ForceExclude)
+			.value("GeometryOnly", slughorn::nanosvg::ShapePolicy::GeometryOnly)
+			.def("__or__", [](slughorn::nanosvg::ShapePolicy a, slughorn::nanosvg::ShapePolicy b) { return a | b; })
+			.def("__ror__", [](slughorn::nanosvg::ShapePolicy a, slughorn::nanosvg::ShapePolicy b) { return a | b; });
+
+		py::class_<slughorn::nanosvg::ShapeRule>(nanosvg, "ShapeRule")
+			.def(py::init([](
+				const std::string& pattern,
+				slughorn::nanosvg::ShapePolicy policy
+			) {
+				return slughorn::nanosvg::ShapeRule{std::regex(pattern), policy};
+			}),
+			py::arg("id"),
+			py::arg("policy") = slughorn::nanosvg::ShapePolicy::Default,
+			"id is a regex matched against each SVG shape's id attribute.\n"
+			"policy controls whether matched shapes are force-included, excluded,\n"
+			"or stored as geometry-only (curves in atlas, no CompositeShape layer).");
+
 		nanosvg.def("load_file",
 			[](
 				const std::string& path,
 				slughorn::Atlas& atlas,
 				slughorn::KeyIterator& keys,
 				float dpi,
-				std::optional<slughorn::nanosvg::LogCallback> log
+				std::optional<slughorn::nanosvg::LogCallback> log,
+				std::vector<slughorn::nanosvg::ShapeRule> rules
 			) {
 				auto config = detail::makeNanosvgLoadConfig(log);
+
+				config.rules = std::move(rules);
 
 				return slughorn::nanosvg::loadFile(path, atlas, keys, dpi, &config);
 			},
@@ -2246,11 +2274,13 @@ PYBIND11_MODULE(slughorn, m) {
 			py::arg("keys") = slughorn::KeyIterator(),
 			py::arg("dpi") = 96.0f,
 			py::arg("log") = py::none(),
+			py::arg("rules") = std::vector<slughorn::nanosvg::ShapeRule>(),
 			"Parse an SVG file and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
-			"omit to print to stderr."
+			"omit to print to stderr.\n"
+			"rules is a list of ShapeRule objects applied in order; first match wins."
 		);
 
 		nanosvg.def("load_string",
@@ -2259,9 +2289,12 @@ PYBIND11_MODULE(slughorn, m) {
 				slughorn::Atlas& atlas,
 				slughorn::KeyIterator& keys,
 				float dpi,
-				std::optional<slughorn::nanosvg::LogCallback> log
+				std::optional<slughorn::nanosvg::LogCallback> log,
+				std::vector<slughorn::nanosvg::ShapeRule> rules
 			) {
 				auto config = detail::makeNanosvgLoadConfig(log);
+
+				config.rules = std::move(rules);
 
 				return slughorn::nanosvg::loadString(svg, atlas, keys, dpi, &config);
 			},
@@ -2270,11 +2303,13 @@ PYBIND11_MODULE(slughorn, m) {
 			py::arg("keys") = slughorn::KeyIterator(),
 			py::arg("dpi") = 96.0f,
 			py::arg("log") = py::none(),
+			py::arg("rules") = std::vector<slughorn::nanosvg::ShapeRule>(),
 			"Parse an SVG string and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
-			"omit to print to stderr."
+			"omit to print to stderr.\n"
+			"rules is a list of ShapeRule objects applied in order; first match wins."
 		);
 	}
 #endif
