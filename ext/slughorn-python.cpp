@@ -81,6 +81,7 @@ using namespace slughorn::literals;
 using slughorn::slug_t;
 
 namespace py = pybind11;
+using namespace py::literals;
 
 PYBIND11_MAKE_OPAQUE(std::vector<slughorn::Layer>);
 
@@ -287,10 +288,10 @@ PYBIND11_MODULE(slughorn, m) {
 	key_
 		// Constructors
 		.def(py::init<>(), "Default key: codepoint 0.")
-		.def(py::init<uint32_t>(), py::arg("codepoint"),
+		.def(py::init<uint32_t>(), "codepoint"_a,
 			"Construct a Codepoint key from a uint32_t (e.g. ord('A'))."
 		)
-		.def(py::init<const std::string&>(), py::arg("name"),
+		.def(py::init<const std::string&>(), "name"_a,
 			"Construct a named key from a string (e.g. Key('logo'))."
 		)
 
@@ -324,12 +325,12 @@ PYBIND11_MODULE(slughorn, m) {
 	// =========================================================================
 	py::class_<slughorn::KeyIterator>(m, "KeyIterator")
 		.def(py::init<>(), "Numeric auto-key iterator starting at 0.")
-		.def(py::init<uint32_t>(), py::arg("counter"),
+		.def(py::init<uint32_t>(), "counter"_a,
 			"Numeric auto-key iterator starting at counter."
 		)
 		.def(py::init([](std::string prefix, bool force) {
 			return slughorn::KeyIterator(prefix, force);
-		}), py::arg("prefix"), py::arg("force") = false,
+		}), "prefix"_a, "force"_a=false,
 			"String key iterator: produces prefix_0, prefix_1, ...\n"
 			"If force=True, the iterator name is always used even when the source\n"
 			"element (e.g. an SVG path) provides its own id attribute."
@@ -358,7 +359,7 @@ PYBIND11_MODULE(slughorn, m) {
 		.def(py::init<>(), "Default: (0, 0, 0, 1) - opaque black.")
 		.def(py::init([](slug_t r, slug_t g, slug_t b, slug_t a) {
 			return slughorn::Color{r, g, b, a};
-		}), py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a") = 1_cv,
+		}), "r"_a, "g"_a, "b"_a, "a"_a=1_cv,
 			"Construct from r, g, b [, a]. All values in [0, 1]."
 		)
 		.def_readwrite("r", &slughorn::Color::r)
@@ -392,13 +393,13 @@ PYBIND11_MODULE(slughorn, m) {
 	py::class_<slughorn::Matrix>(m, "Matrix")
 		.def(py::init<>(), "Default: identity.")
 		.def_static("identity", &slughorn::Matrix::identity, "Return the identity matrix.")
-		.def_static("translate", &slughorn::Matrix::translate, py::arg("tx"), py::arg("ty"),
+		.def_static("translate", &slughorn::Matrix::translate, "tx"_a, "ty"_a,
 			"Return a pure-translation matrix."
 		)
-		.def_static("scale", &slughorn::Matrix::scale, py::arg("sx"), py::arg("sy"),
+		.def_static("scale", &slughorn::Matrix::scale, "sx"_a, "sy"_a,
 			"Return a pure-scale matrix."
 		)
-		.def_static("rotate", &slughorn::Matrix::rotate, py::arg("angle"),
+		.def_static("rotate", &slughorn::Matrix::rotate, "angle"_a,
 			"Return a pure-rotation matrix (angle in radians, CCW positive)."
 		)
 		.def_readwrite("xx", &slughorn::Matrix::xx)
@@ -416,9 +417,9 @@ PYBIND11_MODULE(slughorn, m) {
 			mat.apply(x, y, ox, oy);
 
 			return py::make_tuple(ox, oy);
-		}, py::arg("x"), py::arg("y"),
+		}, "x"_a, "y"_a,
 			"Apply the matrix to point (x, y), returning (x', y').")
-		.def("__mul__", &slughorn::Matrix::operator*, py::arg("rhs"),
+		.def("__mul__", &slughorn::Matrix::operator*, "rhs"_a,
 			"Concatenate: (self * rhs) - rhs is applied first."
 		)
 		.def("__repr__", [](const slughorn::Matrix& mat) { return streamRepr(mat); })
@@ -431,7 +432,7 @@ PYBIND11_MODULE(slughorn, m) {
 		.def(py::init<>(), "Default: t=0, color=(0, 0, 0, 1).")
 		.def(py::init([](slug_t t, slughorn::Color color) {
 			return slughorn::GradientStop{t, color};
-		}), py::arg("t"), py::arg("color"),
+		}), "t"_a, "color"_a,
 			"Construct from position t in [0,1] and RGBA color."
 		)
 		.def_readwrite("t", &slughorn::GradientStop::t,
@@ -474,7 +475,7 @@ PYBIND11_MODULE(slughorn, m) {
 	// Free function: convert two em-space endpoints to a GradientInfo::transform matrix.
 	m.def("build_linear_gradient_matrix",
 		&slughorn::buildLinearGradientMatrix,
-		py::arg("x0"), py::arg("y0"), py::arg("x1"), py::arg("y1"),
+		"x0"_a, "y0"_a, "x1"_a, "y1"_a,
 		"Build the affine matrix for a linear gradient from em-space points (x0,y0)->(x1,y1).\n"
 		"Store the result in GradientInfo.transform.\n"
 		"Returns Matrix.identity() for degenerate (zero-length) inputs."
@@ -486,7 +487,7 @@ PYBIND11_MODULE(slughorn, m) {
 	py::class_<slughorn::Quad>(m, "Quad")
 		.def(py::init([](slug_t x0, slug_t y0, slug_t x1, slug_t y1) {
 			return slughorn::Quad{x0, y0, x1, y1};
-		}), py::arg("x0"), py::arg("y0"), py::arg("x1"), py::arg("y1"))
+		}), "x0"_a, "y0"_a, "x1"_a, "y1"_a)
 		.def_readwrite("x0", &slughorn::Quad::x0)
 		.def_readwrite("y0", &slughorn::Quad::y0)
 		.def_readwrite("x1", &slughorn::Quad::x1)
@@ -503,7 +504,7 @@ PYBIND11_MODULE(slughorn, m) {
 	py::class_<slughorn::Transform>(m, "Transform")
 		.def(py::init([](slug_t x, slug_t y, slug_t z) {
 			return slughorn::Transform{x, y, z};
-		}), py::arg("x") = 0_cv, py::arg("y") = 0_cv, py::arg("z") = 0_cv)
+		}), "x"_a=0_cv, "y"_a=0_cv, "z"_a=0_cv)
 		.def_readwrite("x", &slughorn::Transform::x)
 		.def_readwrite("y", &slughorn::Transform::y)
 		.def_readwrite("z", &slughorn::Transform::z)
@@ -546,13 +547,13 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return layer;
 			}),
-			py::arg("key"),
-			py::arg("color") = slughorn::Color{},
-			py::arg("transform") = slughorn::Transform{},
-			py::arg("scale") = 1_cv,
-			py::arg("effectId") = 0,
-			py::arg("gradientId") = 0,
-			py::arg("expand") = 0.01_cv
+			"key"_a,
+			"color"_a=slughorn::Color{},
+			"transform"_a=slughorn::Transform{},
+			"scale"_a=1_cv,
+			"effectId"_a=0,
+			"gradientId"_a=0,
+			"expand"_a=0.01_cv
 		)
 
 		.def_readwrite("key", &slughorn::Layer::key,
@@ -647,9 +648,7 @@ PYBIND11_MODULE(slughorn, m) {
 			slug_t x2, slug_t y2,
 			slug_t x3, slug_t y3
 		) { return slughorn::Atlas::Curve{x1, y1, x2, y2, x3, y3}; }),
-			py::arg("x1"), py::arg("y1"),
-			py::arg("x2"), py::arg("y2"),
-			py::arg("x3"), py::arg("y3"),
+			"x1"_a, "y1"_a, "x2"_a, "y2"_a, "x3"_a, "y3"_a,
 			"Quadratic Bezier: p1=(x1,y1) start, p2=(x2,y2) control, p3=(x3,y3) end."
 		)
 		.def_readwrite("x1", &slughorn::Atlas::Curve::x1)
@@ -737,16 +736,16 @@ PYBIND11_MODULE(slughorn, m) {
 			"Default origin: Layer.transform.x/y = bbox corner (existing behavior)."
 		)
 		.def(py::init<slughorn::Atlas::ShapeInfo::Origin::Type>(),
-			py::arg("type"),
+			"type"_a,
 			"Type-only origin: pass Origin.Type.Centered (or any future named variant)."
 		)
 		.def(py::init<slughorn::slug_t, slughorn::slug_t>(),
-			py::arg("x"), py::arg("y"),
+			"x"_a, "y"_a,
 			"Pivot origin: authoring-space pivot (bbox-min subtracted). "
 			"Layer.transform.x/y will equal (x, y) scaled to local em-space."
 		)
 		.def(py::init<slughorn::Atlas::ShapeInfo::Origin::Type, slughorn::slug_t, slughorn::slug_t>(),
-			py::arg("type"), py::arg("x"), py::arg("y"),
+			"type"_a, "x"_a, "y"_a,
 			"Explicit type + coords. Use Origin.Type.Custom to store (x, y) * scale verbatim "
 			"with no em-space adjustment (e.g. raw ejection direction vectors)."
 		)
@@ -809,8 +808,8 @@ PYBIND11_MODULE(slughorn, m) {
 		// Convenience: recover em-space origin and size (mirrors slug_EmToUV logic)
 		.def_property_readonly("em_origin", [](const slughorn::Atlas::Shape& s) {
 			// emOrigin = -bandOffset / bandScale
-			float ox = (s.bandScaleX != 0.f) ? -s.bandOffsetX / s.bandScaleX : 0.f;
-			float oy = (s.bandScaleY != 0.f) ? -s.bandOffsetY / s.bandScaleY : 0.f;
+			slug_t ox = (s.bandScaleX != 0.f) ? -s.bandOffsetX / s.bandScaleX : 0.f;
+			slug_t oy = (s.bandScaleY != 0.f) ? -s.bandOffsetY / s.bandScaleY : 0.f;
 
 			return py::make_tuple(ox, oy);
 		}, "Em-space (x, y) of the shape's bottom-left corner. "
@@ -818,28 +817,26 @@ PYBIND11_MODULE(slughorn, m) {
 		)
 		.def_property_readonly("em_size", [](const slughorn::Atlas::Shape& s) {
 			// emSize = INDIRECTION_SIZE / bandScale (mirrors slug_EmToUV's emSize)
-			float sx = (s.bandScaleX != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleX : 0.f;
-			float sy = (s.bandScaleY != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleY : 0.f;
+			slug_t sx = (s.bandScaleX != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleX : 0.f;
+			slug_t sy = (s.bandScaleY != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleY : 0.f;
 			return py::make_tuple(sx, sy);
 		}, "Em-space (width, height) of the shape's bounding box. "
 			"Mirrors slug_EmToUV's emSize computation."
 		)
 		.def("em_to_uv", [](const slughorn::Atlas::Shape& s, slug_t ex, slug_t ey) {
 			// Direct Python port of slug_EmToUV()
-			float ox = (s.bandScaleX != 0.f) ? -s.bandOffsetX / s.bandScaleX : 0.f;
-			float oy = (s.bandScaleY != 0.f) ? -s.bandOffsetY / s.bandScaleY : 0.f;
-			float sx = (s.bandScaleX != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleX : 1.f;
-			float sy = (s.bandScaleY != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleY : 1.f;
+			slug_t ox = (s.bandScaleX != 0.f) ? -s.bandOffsetX / s.bandScaleX : 0.f;
+			slug_t oy = (s.bandScaleY != 0.f) ? -s.bandOffsetY / s.bandScaleY : 0.f;
+			slug_t sx = (s.bandScaleX != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleX : 1.f;
+			slug_t sy = (s.bandScaleY != 0.f) ? float(slughorn::Atlas::INDIRECTION_SIZE) / s.bandScaleY : 1.f;
 
 			return py::make_tuple((ex - ox) / sx, (ey - oy) / sy);
-		}, py::arg("em_x"), py::arg("em_y"),
+		}, "em_x"_a, "em_y"_a,
 			"Convert an em-space coordinate to a normalized [0, 1] UV. "
 			"Python port of the GLSL slug_EmToUV() helper. "
 			"(0,0) = bottom-left of bounding box, (1,1) = top-right.")
 		.def("compute_quad", &slughorn::Atlas::Shape::computeQuad,
-			py::arg("transform"),
-			py::arg("scale") = 1_cv,
-			py::arg("expand") = 0_cv,
+			"transform"_a, "scale"_a=1_cv, "expand"_a=0_cv,
 			"Compute the world-space bounding quad for this shape."
 		)
 		.def_property_readonly("curves",
@@ -902,19 +899,19 @@ PYBIND11_MODULE(slughorn, m) {
 		.def(py::init<>())
 
 		.def("add_shape", &slughorn::Atlas::addShape,
-			py::arg("key"), py::arg("info"),
+			"key"_a, "info"_a,
 			"Register a shape under key. Must be called before build()."
 		)
 
 		.def("add_composite_shape", &slughorn::Atlas::addCompositeShape,
-			py::arg("key"), py::arg("composite"),
+			"key"_a, "composite"_a,
 			"Register a CompositeShape under key. "
 			"May be called before or after build()."
 		)
 
 		.def("normalize_shape_metrics",
 			&slughorn::Atlas::normalizeShapeMetrics,
-			py::arg("keys"),
+			"keys"_a,
 			"Force all shapes in keys to share the same em-space bounding box.\n\n"
 			"Must be called after add_shape() but before build(). Keys not present\n"
 			"in the atlas or shapes with no curves are silently skipped.\n\n"
@@ -940,7 +937,7 @@ PYBIND11_MODULE(slughorn, m) {
 			{
 				return a.getShape(key);
 			},
-			py::arg("key"),
+			"key"_a,
 			"Return a Shape with all info (metrics, curves, origin) for key, or None if not found.\n"
 			"Works at any build lifecycle stage - pre-build returns font metrics and em-space\n"
 			"curves; post-build also includes GPU band fields. Use get_shape_contours() to\n"
@@ -962,7 +959,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return result;
 			},
-			py::arg("key"),
+			"key"_a,
 			"Return list of contours; each contour is a list of (x1,y1,x2,y2,x3,y3) tuples.\n"
 			"Contour breaks are detected where p3 of curve[i] != p1 of curve[i+1].\n"
 			"Returns an empty list if the key is not found. Use when building paths for\n"
@@ -979,13 +976,13 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return *c;
 			},
-			py::arg("key"),
+			"key"_a,
 			"Return the CompositeShape for key, or None if not found."
 		)
 
 		.def("has_key",
 			&slughorn::Atlas::hasKey,
-			py::arg("key"),
+			"key"_a,
 			"Return True if key is registered (shape, composite, or pending build)."
 		)
 
@@ -1044,7 +1041,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 		.def("add_gradient",
 			&slughorn::Atlas::addGradient,
-			py::arg("info"),
+			"info"_a,
 			"Register a gradient. Returns a 1-based ID (0 = error / atlas already built).\n"
 			"Store the ID in Layer.gradientId to activate the gradient for that layer.\n"
 			"Must be called before build(). Gradients are rasterized during build()."
@@ -1061,7 +1058,7 @@ PYBIND11_MODULE(slughorn, m) {
 			[](const slughorn::Atlas& a, slughorn::Key key) {
 				return slughorn::render::decode(a, key);
 			},
-			py::arg("key"),
+			"key"_a,
 			"Decode a built shape into a Python-facing software-render view.\n"
 			"Returns a slughorn.render.Sampler."
 		)
@@ -1071,9 +1068,7 @@ PYBIND11_MODULE(slughorn, m) {
 			[](const slughorn::Atlas& a, slughorn::Key key, uint32_t tileSize, double range) {
 				return slughorn::render::renderSDF(a, key, tileSize, range);
 			},
-			py::arg("key"),
-			py::arg("tile_size")=128,
-			py::arg("range")=0.1,
+			"key"_a, "tile_size"_a=128, "range"_a=0.1,
 			"Generate a single-channel SDF tile via msdfgen.\n"
 			"Returns a Grid; use memoryview(grid) for a (H, W) float32 view,\n"
 			"or np.asarray(grid) for NumPy. Edge pixels are ~0.5."
@@ -1083,9 +1078,7 @@ PYBIND11_MODULE(slughorn, m) {
 			[](const slughorn::Atlas& a, slughorn::Key key, uint32_t tileSize, double range) {
 				return slughorn::render::renderMSDF(a, key, tileSize, range);
 			},
-			py::arg("key"),
-			py::arg("tile_size") = 128,
-			py::arg("range") = 0.1,
+			"key"_a, "tile_size"_a=128, "range"_a=0.1,
 			"Generate a multi-channel SDF tile via msdfgen.\n"
 			"Returns an MSDFGrid; use memoryview(grid) for a (H, W, 3) float32 view,\n"
 			"or np.asarray(grid) for NumPy. Reconstruct in shader: median(r, g, b)."
@@ -1103,7 +1096,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return py::make_tuple(sx, sy);
 			},
-			py::arg("curves"), py::arg("num_bands_x"), py::arg("num_bands_y"),
+			"curves"_a, "num_bands_x"_a, "num_bands_y"_a,
 			"Sweep-line valley placement: places band boundaries where fewest curves cross,\n"
 			"minimizing per-fragment shader iterations.\n\n"
 			"Returns (splits_x, splits_y): normalized [0, 1] fraction lists to assign to\n"
@@ -1125,7 +1118,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return py::make_tuple(sx, sy);
 			},
-			py::arg("curves"), py::arg("num_bands_x"), py::arg("num_bands_y"),
+			"curves"_a, "num_bands_x"_a, "num_bands_y"_a,
 			"Uniform placement: evenly-spaced fractions (i+1)/num_bands.\n"
 			"Equivalent to the implicit uniform fallback, but returned as an explicit vector\n"
 			"for inspection or manual adjustment.\n\n"
@@ -1152,15 +1145,13 @@ PYBIND11_MODULE(slughorn, m) {
 		.def_property("tolerance", &PyCurveDecomposer::getTolerance, &PyCurveDecomposer::setTolerance,
 			"Flatness threshold for cubic decomposition in curve-space units."
 		)
-		.def("move_to", &PyCurveDecomposer::moveTo, py::arg("x"), py::arg("y"))
-		.def("line_to", &PyCurveDecomposer::lineTo, py::arg("x3"), py::arg("y3"))
+		.def("move_to", &PyCurveDecomposer::moveTo, "x"_a, "y"_a)
+		.def("line_to", &PyCurveDecomposer::lineTo, "x3"_a, "y3"_a)
 		.def("quad_to", &PyCurveDecomposer::quadTo,
-			py::arg("cx"), py::arg("cy"), py::arg("x3"), py::arg("y3")
+			"cx"_a, "cy"_a, "x3"_a, "y3"_a
 		)
 		.def("cubic_to", &PyCurveDecomposer::cubicTo,
-			py::arg("c1x"), py::arg("c1y"),
-			py::arg("c2x"), py::arg("c2y"),
-			py::arg("x3"), py::arg("y3")
+			"c1x"_a, "c1y"_a, "c2x"_a, "c2y"_a, "x3"_a, "y3"_a
 		)
 		.def("get_curves", &PyCurveDecomposer::getCurves,
 			py::return_value_policy::copy,
@@ -1180,12 +1171,12 @@ PYBIND11_MODULE(slughorn, m) {
 		.def("mark", &PyCurveDecomposer::mark,
 			"Return the current curve count as a position snapshot for reverse_from()."
 		)
-		.def("reverse_from", &PyCurveDecomposer::reverseFrom, py::arg("pos"),
+		.def("reverse_from", &PyCurveDecomposer::reverseFrom, "pos"_a,
 			"Reverse the winding of all curves appended since mark(pos).\n"
 			"Swaps each curve's endpoints and reverses the sequence order."
 		)
 		.def("reverse_curves", &PyCurveDecomposer::reverseCurves,
-			py::arg("begin"), py::arg("end"),
+			"begin"_a, "end"_a,
 			"Reverse the winding of curves[begin:end] in-place.\n"
 			"Swaps each curve's endpoints and reverses the sequence order."
 		)
@@ -1204,11 +1195,11 @@ PYBIND11_MODULE(slughorn, m) {
 		.def("mark", &CurveDecomposerRef::mark,
 			"Return the current curve count as a position snapshot for reverse_from()."
 		)
-		.def("reverse_from", &CurveDecomposerRef::reverseFrom, py::arg("pos"),
+		.def("reverse_from", &CurveDecomposerRef::reverseFrom, "pos"_a,
 			"Reverse the winding of all curves appended since mark(pos)."
 		)
 		.def("reverse_curves", &CurveDecomposerRef::reverseCurves,
-			py::arg("begin"), py::arg("end"),
+			"begin"_a, "end"_a,
 			"Reverse the winding of curves[begin:end] in-place."
 		)
 	;
@@ -1327,7 +1318,7 @@ PYBIND11_MODULE(slughorn, m) {
 					out.append(d.hbandIndices[j]);
 
 				return out;
-			}, py::arg("index"))
+			}, "index"_a)
 			.def("get_vband", [](const Sampler& d, uint32_t i) {
 				if(i + 1 >= d.vbandOffsets.size()) throw py::index_error("vertical band out of range");
 
@@ -1337,28 +1328,26 @@ PYBIND11_MODULE(slughorn, m) {
 					out.append(d.vbandIndices[j]);
 
 				return out;
-			}, py::arg("index"))
+			}, "index"_a)
 			.def("render_sample",
 				[](const Sampler& d, slug_t x, slug_t y, slug_t ppeX, slug_t ppeY) {
 					return d.renderSample(x, y, ppeX, ppeY);
 				},
-				py::arg("x"), py::arg("y"), py::arg("ppe_x"), py::arg("ppe_y"),
+				"x"_a, "y"_a, "ppe_x"_a, "ppe_y"_a,
 				"Reference software sample using all decoded curves."
 			)
 			.def("render_sample_banded",
 				[](const Sampler& d, slug_t x, slug_t y, slug_t ppeX, slug_t ppeY) {
 					return d.renderSampleBanded(x, y, ppeX, ppeY);
 				},
-				py::arg("x"), py::arg("y"), py::arg("ppe_x"), py::arg("ppe_y"),
+				"x"_a, "y"_a, "ppe_x"_a, "ppe_y"_a,
 				"Band-accelerated software sample mirroring the GPU shader path."
 			)
 			.def("render_grid",
 				[](const Sampler& d, uint32_t size, slug_t margin, bool banded) {
 					return d.renderGrid(size, margin, banded);
 				},
-				py::arg("size") = 128,
-				py::arg("margin") = 0_cv,
-				py::arg("banded") = true,
+				"size"_a=128, "margin"_a=0_cv, "banded"_a=true,
 				"Render a full grayscale coverage grid.\n"
 				"Returns a Grid; use memoryview(grid) for a zero-copy (H, W) float32 view,\n"
 				"or np.asarray(grid) for NumPy users."
@@ -1378,7 +1367,7 @@ PYBIND11_MODULE(slughorn, m) {
 			[](const slughorn::Atlas& atlas, slughorn::Key key) {
 				return slughorn::render::decode(atlas, key);
 			},
-			py::arg("atlas"), py::arg("key"),
+			"atlas"_a, "key"_a,
 			"Decode a built atlas shape into a slughorn.render.Sampler."
 		);
 	}
@@ -1496,11 +1485,11 @@ PYBIND11_MODULE(slughorn, m) {
 					}
 
 					return slughorn::canvas::Path(std::move(curves));
-				}), py::arg("curves"),
+				}), "curves"_a,
 					"Create a path from a (N, 6) float32 buffer (memoryview, numpy array, etc.).\n"
 					"Accepts Shape.curves directly: Path(atlas.get_shape(key).curves)"
 				)
-				.def(py::init<slughorn::Atlas::Curves>(), py::arg("curves"),
+				.def(py::init<slughorn::Atlas::Curves>(), "curves"_a,
 					"Create a path pre-populated with a list of Curve objects."
 				)
 
@@ -1510,12 +1499,12 @@ PYBIND11_MODULE(slughorn, m) {
 					"matching HTML Canvas beginPath() semantics.")
 				.def("add_path",
 					py::overload_cast<const Path&>(&Path::addPath),
-					py::arg("other"),
+					"other"_a,
 					"Append all curves from other into this path's accumulator. Does not affect other."
 				)
 				.def("add_path",
 					py::overload_cast<const Path&, const slughorn::Matrix&>(&Path::addPath),
-					py::arg("other"), py::arg("transform"),
+					"other"_a, "transform"_a,
 					"Append curves from other with each control point transformed by transform.\n"
 					"Matches HTML Canvas Path2D.addPath(path, DOMMatrix) semantics."
 				)
@@ -1524,44 +1513,43 @@ PYBIND11_MODULE(slughorn, m) {
 				.def("save", &Path::save, "Push the current transform onto the stack.")
 				.def("restore", &Path::restore, "Pop the transform stack.")
 				.def("reset_transform", &Path::resetTransform, "Set CTM to identity.")
-				.def("set_transform", &Path::setTransform, py::arg("m"),
+				.def("set_transform", &Path::setTransform, "m"_a,
 					"Replace CTM with matrix m.")
 				.def("transform", py::overload_cast<const slughorn::Matrix&>(&Path::transform),
-					py::arg("m"), "Post-multiply CTM by m.")
-				.def("translate", &Path::translate, py::arg("tx"), py::arg("ty"))
-				.def("rotate", &Path::rotate, py::arg("angle"), "Angle in radians.")
-				.def("scale", &Path::scale, py::arg("sx"), py::arg("sy"))
+					"m"_a, "Post-multiply CTM by m.")
+				.def("translate", &Path::translate, "tx"_a, "ty"_a)
+				.def("rotate", &Path::rotate, "angle"_a, "Angle in radians.")
+				.def("scale", &Path::scale, "sx"_a, "sy"_a)
 
 				// Path commands
-				.def("move_to", &Path::moveTo, py::arg("x"), py::arg("y"))
-				.def("line_to", &Path::lineTo, py::arg("x"), py::arg("y"))
+				.def("move_to", &Path::moveTo, "x"_a, "y"_a)
+				.def("line_to", &Path::lineTo, "x"_a, "y"_a)
 				.def("quad_to", &Path::quadTo,
-					py::arg("cx"), py::arg("cy"), py::arg("x"), py::arg("y"))
+					"cx"_a, "cy"_a, "x"_a, "y"_a)
 				.def("bezier_to", &Path::bezierTo,
-					py::arg("c1x"), py::arg("c1y"), py::arg("c2x"), py::arg("c2y"),
-					py::arg("x"), py::arg("y"))
+					"c1x"_a, "c1y"_a, "c2x"_a, "c2y"_a,
+					"x"_a, "y"_a)
 				.def("close_path", &Path::closePath)
 
 				// Shape helpers
 				.def("rect", &Path::rect,
-					py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"))
+					"x"_a, "y"_a, "w"_a, "h"_a)
 				.def("rounded_rect", &Path::roundedRect,
-					py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"), py::arg("r"))
-				.def("circle", &Path::circle, py::arg("cx"), py::arg("cy"), py::arg("r"))
+					"x"_a, "y"_a, "w"_a, "h"_a, "r"_a)
+				.def("circle", &Path::circle, "cx"_a, "cy"_a, "r"_a)
 				.def("ellipse", &Path::ellipse,
-					py::arg("cx"), py::arg("cy"), py::arg("rx"), py::arg("ry"))
+					"cx"_a, "cy"_a, "rx"_a, "ry"_a)
 				.def("arc", &Path::arc,
-					py::arg("cx"), py::arg("cy"), py::arg("r"),
-					py::arg("start_angle"), py::arg("end_angle"), py::arg("ccw") = false,
+					"cx"_a, "cy"_a, "r"_a, "start_angle"_a, "end_angle"_a, "ccw"_a=false,
 					"Circular arc. Does NOT call clear(); appends to the current path.\n"
 					"Angles in radians from +X axis, Y-up convention.")
 				.def("arc_to", &Path::arcTo,
-					py::arg("x1"), py::arg("y1"), py::arg("x2"), py::arg("y2"), py::arg("r"),
+					"x1"_a, "y1"_a, "x2"_a, "y2"_a, "r"_a,
 					"Tangential arc. Matches HTML Canvas arcTo().")
 
 				// Stroke expansion
 				.def("stroke_path", &Path::strokePath,
-					py::arg("width"), py::arg("cw") = false,
+					"width"_a, "cw"_a=false,
 					"Expand from centerline to constant-width stroke outline in place.\n"
 					"cw=True reverses the winding (CW, for punch-out effects with nonzero rule).\n"
 					"Returns False if the path was empty.")
@@ -1578,7 +1566,7 @@ PYBIND11_MODULE(slughorn, m) {
 					"True if the path has any accumulated curves.")
 				.def("arc_length", &Path::arcLength,
 					"Total arc length of the path. Triggers LUT rebuild if geometry changed.")
-				.def("sample", &Path::sample, py::arg("t"),
+				.def("sample", &Path::sample, "t"_a,
 					"Sample position and tangent at normalized arc-length t in [0,1].\n"
 					"Returns a Path.Sample(x, y, angle).")
 				.def("__repr__", [](const Path& p) { return streamRepr(p); })
@@ -1589,7 +1577,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 		py::class_<slughorn::canvas::Canvas>(canvas, "Canvas")
 			.def(py::init<slughorn::Atlas&, slughorn::KeyIterator>(),
-				py::arg("atlas"), py::arg("key_iterator")=slughorn::KeyIterator(),
+				"atlas"_a, "key_iterator"_a=slughorn::KeyIterator(),
 				"Construct a Canvas writing into atlas, using key_iterator for auto-generated keys."
 			)
 
@@ -1610,13 +1598,13 @@ PYBIND11_MODULE(slughorn, m) {
 			.def("save", &slughorn::canvas::Canvas::save, "Push the current transform.")
 			.def("restore", &slughorn::canvas::Canvas::restore, "Pop the transform stack.")
 			.def("reset_transform", &slughorn::canvas::Canvas::resetTransform)
-			.def("set_transform", &slughorn::canvas::Canvas::setTransform, py::arg("m"))
+			.def("set_transform", &slughorn::canvas::Canvas::setTransform, "m"_a)
 			.def("transform",
 				py::overload_cast<const slughorn::Matrix&>(&slughorn::canvas::Canvas::transform),
-				py::arg("m"))
-			.def("translate", &slughorn::canvas::Canvas::translate, py::arg("tx"), py::arg("ty"))
-			.def("rotate", &slughorn::canvas::Canvas::rotate, py::arg("angle"))
-			.def("scale", &slughorn::canvas::Canvas::scale, py::arg("sx"), py::arg("sy"))
+				"m"_a)
+			.def("translate", &slughorn::canvas::Canvas::translate, "tx"_a, "ty"_a)
+			.def("rotate", &slughorn::canvas::Canvas::rotate, "angle"_a)
+			.def("scale", &slughorn::canvas::Canvas::scale, "sx"_a, "sy"_a)
 
 			// Path commands ---------------------------------------------------
 
@@ -1625,49 +1613,47 @@ PYBIND11_MODULE(slughorn, m) {
 			)
 			.def("add_path",
 				py::overload_cast<const slughorn::canvas::Path&>(&slughorn::canvas::Canvas::addPath),
-				py::arg("other"),
+				"other"_a,
 				"Append all curves from an explicit Path into the canvas's internal path."
 			)
 			.def("add_path",
 				py::overload_cast<const slughorn::canvas::Path&, const slughorn::Matrix&>(&slughorn::canvas::Canvas::addPath),
-				py::arg("other"), py::arg("transform"),
+				"other"_a, "transform"_a,
 				"Append curves from an explicit Path with each control point transformed by transform.\n"
 				"Matches HTML Canvas Path2D.addPath(path, DOMMatrix) semantics."
 			)
-			.def("move_to", &slughorn::canvas::Canvas::moveTo, py::arg("x"), py::arg("y"))
-			.def("line_to", &slughorn::canvas::Canvas::lineTo, py::arg("x"), py::arg("y"))
+			.def("move_to", &slughorn::canvas::Canvas::moveTo, "x"_a, "y"_a)
+			.def("line_to", &slughorn::canvas::Canvas::lineTo, "x"_a, "y"_a)
 			.def("quad_to", &slughorn::canvas::Canvas::quadTo,
-				py::arg("cx"), py::arg("cy"), py::arg("x"), py::arg("y")
+				"cx"_a, "cy"_a, "x"_a, "y"_a
 			)
 			.def("bezier_to", &slughorn::canvas::Canvas::bezierTo,
-				py::arg("c1x"), py::arg("c1y"), py::arg("c2x"), py::arg("c2y"),
-				py::arg("x"), py::arg("y")
+				"c1x"_a, "c1y"_a, "c2x"_a, "c2y"_a, "x"_a, "y"_a
 			)
 			.def("close_path", &slughorn::canvas::Canvas::closePath)
 
 			// Convenience shape helpers ---------------------------------------
 
 			.def("rect", &slughorn::canvas::Canvas::rect,
-				py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"),
+				"x"_a, "y"_a, "w"_a, "h"_a,
 				"Axis-aligned rectangle."
 			)
 			.def("rounded_rect", &slughorn::canvas::Canvas::roundedRect,
-				py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"), py::arg("r"),
+				"x"_a, "y"_a, "w"_a, "h"_a, "r"_a,
 				"Rounded rectangle with uniform corner radius r."
 			)
 			.def("circle", &slughorn::canvas::Canvas::circle,
-				py::arg("cx"), py::arg("cy"), py::arg("r")
+				"cx"_a, "cy"_a, "r"_a
 			)
 			.def("ellipse", &slughorn::canvas::Canvas::ellipse,
-				py::arg("cx"), py::arg("cy"), py::arg("rx"), py::arg("ry")
+				"cx"_a, "cy"_a, "rx"_a, "ry"_a
 			)
 			.def("arc", &slughorn::canvas::Canvas::arc,
-				py::arg("cx"), py::arg("cy"), py::arg("r"),
-				py::arg("start_angle"), py::arg("end_angle"), py::arg("ccw") = false,
+				"cx"_a, "cy"_a, "r"_a, "start_angle"_a, "end_angle"_a, "ccw"_a=false,
 				"Circular arc. Angles in radians from +X axis, Y-up convention."
 			)
 			.def("arc_to", &slughorn::canvas::Canvas::arcTo,
-				py::arg("x1"), py::arg("y1"), py::arg("x2"), py::arg("y2"), py::arg("r"),
+				"x1"_a, "y1"_a, "x2"_a, "y2"_a, "r"_a,
 				"Tangential arc from current point. Matches HTML Canvas arcTo()."
 			)
 
@@ -1683,8 +1669,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fill(color, scale, origin);
 				},
-				py::arg("color"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"color"_a, "scale"_a=1_cv, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Commit the current path as a new Layer with the given color.\n"
 				"Returns the Layer (use .key to access the auto-generated Key), or an empty Layer if the path was empty."
 			)
@@ -1699,8 +1684,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fill(color, scale, key, origin);
 				},
-				py::arg("color"), py::arg("scale"), py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"color"_a, "scale"_a, "key"_a, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Commit the current path as a new Layer, registering the Shape under key.\n"
 				"Returns the Layer (use .key to access the registered Key), or an empty Layer if the path was empty."
 			)
@@ -1713,8 +1697,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.defineShape(key, scale, origin);
 				},
-				py::arg("key"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"key"_a, "scale"_a=1_cv, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Register the current path as a named Shape (geometry only, no Layer).\n"
 				"Returns False if the path was empty."
 			)
@@ -1723,7 +1706,7 @@ PYBIND11_MODULE(slughorn, m) {
 				[](slughorn::canvas::Canvas& c, slug_t width, bool cw) {
 					return c.strokePath(width, cw);
 				},
-				py::arg("width"), py::arg("cw") = false,
+				"width"_a, "cw"_a=false,
 				"Expand the current path from a centerline into a stroke outline in place.\n"
 				"cw=True reverses the winding (CW, for punch-out effects).\n"
 				"Call fill() or stroke() afterwards to commit."
@@ -1739,8 +1722,10 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.stroke(width, color, scale, origin);
 				},
-				py::arg("width"), py::arg("color"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"width"_a,
+				"color"_a,
+				"scale"_a=1_cv,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Expand the current path as a stroke outline and commit as a colored Layer."
 			)
 			// stroke() - named-key
@@ -1755,8 +1740,11 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.stroke(width, color, scale, key, origin);
 				},
-				py::arg("width"), py::arg("color"), py::arg("scale"), py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"width"_a,
+				"color"_a,
+				"scale"_a,
+				"key"_a,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Expand the current path as a stroke outline, registering under key."
 			)
 
@@ -1773,8 +1761,10 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fill(p, color, scale, origin);
 				},
-				py::arg("path"), py::arg("color"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a,
+				"color"_a,
+				"scale"_a=1_cv,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Fill a standalone Path. path is not consumed or modified."
 			)
 			// fill(path, color, scale, key) - named-key
@@ -1789,8 +1779,11 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fill(p, color, scale, key, origin);
 				},
-				py::arg("path"), py::arg("color"), py::arg("scale"), py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a,
+				"color"_a,
+				"scale"_a,
+				"key"_a,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Fill a standalone Path, registering under key. path is not consumed."
 			)
 			.def("define_shape",
@@ -1803,8 +1796,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.defineShape(p, key, scale, origin);
 				},
-				py::arg("path"), py::arg("key"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a, "key"_a, "scale"_a=1_cv, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Register a standalone Path as a named Shape (geometry only, no Layer)."
 			)
 			// stroke(path, ...) - auto-key
@@ -1819,8 +1811,11 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.stroke(p, width, color, scale, origin);
 				},
-				py::arg("path"), py::arg("width"), py::arg("color"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a,
+				"width"_a,
+				"color"_a,
+				"scale"_a=1_cv,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Stroke a standalone Path. path is not consumed or modified."
 			)
 			// stroke(path, ...) - named-key
@@ -1836,9 +1831,12 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.stroke(p, width, color, scale, key, origin);
 				},
-				py::arg("path"), py::arg("width"), py::arg("color"),
-				py::arg("scale"), py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a,
+				"width"_a,
+				"color"_a,
+				"scale"_a,
+				"key"_a,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Stroke a standalone Path, registering under key."
 			)
 			.def("fill_gradient",
@@ -1851,8 +1849,10 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fillGradient(p, handle, scale, origin);
 				},
-				py::arg("path"), py::arg("handle"), py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"path"_a,
+				"handle"_a,
+				"scale"_a=1_cv,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Gradient-fill a standalone Path. path is not consumed."
 			)
 
@@ -1867,9 +1867,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.createLinearGradient(x0, y0, x1, y1, std::move(stops));
 				},
-				py::arg("x0"), py::arg("y0"),
-				py::arg("x1"), py::arg("y1"),
-				py::arg("stops"),
+				"x0"_a, "y0"_a, "x1"_a, "y1"_a, "stops"_a,
 				"Create a GradientHandle for a linear gradient from (x0,y0) to (x1,y1)."
 			)
 			.def("create_radial_gradient",
@@ -1881,9 +1879,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.createRadialGradient(cx, cy, r0, r1, std::move(stops));
 				},
-				py::arg("cx"), py::arg("cy"),
-				py::arg("r0"), py::arg("r1"),
-				py::arg("stops"),
+				"cx"_a, "cy"_a, "r0"_a, "r1"_a, "stops"_a,
 				"Create a GradientHandle for a radial gradient centered at (cx,cy).\n"
 				"r0 is the inner radius, r1 is the outer radius."
 			)
@@ -1896,9 +1892,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.createSweepGradient(cx, cy, start_angle, end_angle, std::move(stops));
 				},
-				py::arg("cx"), py::arg("cy"),
-				py::arg("start_angle"), py::arg("end_angle"),
-				py::arg("stops"),
+				"cx"_a, "cy"_a, "start_angle"_a, "end_angle"_a, "stops"_a,
 				"Create a GradientHandle for a sweep (conic) gradient centered at (cx,cy).\n"
 				"Angles in radians."
 			)
@@ -1913,9 +1907,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fillGradient(handle, scale, origin);
 				},
-				py::arg("handle"),
-				py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"handle"_a, "scale"_a=1_cv, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Commit the current path as a gradient-filled Layer."
 			)
 			// fill_gradient() - named-key
@@ -1929,10 +1921,7 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.fillGradient(handle, scale, key, origin);
 				},
-				py::arg("handle"),
-				py::arg("scale"),
-				py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"handle"_a, "scale"_a, "key"_a, "origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Commit the current path as a gradient-filled Layer, registering under key."
 			)
 			// stroke_gradient() - auto-key
@@ -1946,9 +1935,10 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.strokeGradient(width, handle, scale, origin);
 				},
-				py::arg("width"), py::arg("handle"),
-				py::arg("scale") = 1_cv,
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"width"_a,
+				"handle"_a,
+				"scale"_a=1_cv,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Expand the current path as a stroke outline and commit with a gradient fill."
 			)
 			// stroke_gradient() - named-key
@@ -1963,9 +1953,11 @@ PYBIND11_MODULE(slughorn, m) {
 				) {
 					return c.strokeGradient(width, handle, scale, key, origin);
 				},
-				py::arg("width"), py::arg("handle"),
-				py::arg("scale"), py::arg("key"),
-				py::arg("origin") = slughorn::Atlas::ShapeInfo::Origin{},
+				"width"_a,
+				"handle"_a,
+				"scale"_a,
+				"key"_a,
+				"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 				"Expand the current path as a stroke outline with a gradient, registering under key."
 			)
 
@@ -1975,7 +1967,7 @@ PYBIND11_MODULE(slughorn, m) {
 				"Discard all accumulated layers and start a fresh composite."
 			)
 			.def("set_advance", &slughorn::canvas::Canvas::setAdvance,
-				py::arg("advance"),
+				"advance"_a,
 				"Set the horizontal advance of the composite being built."
 			)
 			.def("finalize",
@@ -1984,19 +1976,19 @@ PYBIND11_MODULE(slughorn, m) {
 			)
 			.def("finalize",
 				py::overload_cast<slughorn::Key>(&slughorn::canvas::Canvas::finalize),
-				py::arg("key"),
+				"key"_a,
 				"Register the completed CompositeShape in the Atlas under key and reset."
 			)
 			.def("text",
 				&slughorn::canvas::Canvas::text,
-				py::arg("s"),
-				py::arg("font_size"),
-				py::arg("x"),
-				py::arg("y"),
-				py::arg("color"),
-				py::arg("metrics"),
-				py::arg("anchor_y") = slughorn::canvas::TextAnchorY::Baseline,
-				py::arg("align_x") = slughorn::canvas::TextAlignX::Left,
+				"s"_a,
+				"font_size"_a,
+				"x"_a,
+				"y"_a,
+				"color"_a,
+				"metrics"_a,
+				"anchor_y"_a=slughorn::canvas::TextAnchorY::Baseline,
+				"align_x"_a=slughorn::canvas::TextAlignX::Left,
 				"Place glyphs from s into the current composite.\n\n"
 				"The atlas must already contain the requested codepoints (loaded via a\n"
 				"freetype function before atlas.build()). Handles em-space conversion,\n"
@@ -2007,15 +1999,15 @@ PYBIND11_MODULE(slughorn, m) {
 
 			.def("stroke_text",
 				&slughorn::canvas::Canvas::strokeText,
-				py::arg("s"),
-				py::arg("font_size"),
-				py::arg("stroke_width"),
-				py::arg("x"),
-				py::arg("y"),
-				py::arg("color"),
-				py::arg("metrics"),
-				py::arg("anchor_y") = slughorn::canvas::TextAnchorY::Baseline,
-				py::arg("align_x") = slughorn::canvas::TextAlignX::Left,
+				"s"_a,
+				"font_size"_a,
+				"stroke_width"_a,
+				"x"_a,
+				"y"_a,
+				"color"_a,
+				"metrics"_a,
+				"anchor_y"_a=slughorn::canvas::TextAnchorY::Baseline,
+				"align_x"_a=slughorn::canvas::TextAlignX::Left,
 				"Stroke glyph outlines from s into the current composite.\n\n"
 				"Unlike text(), this tessellates each glyph's contours as stroked paths.\n"
 				"Must be called before atlas.build() - stroke shapes are registered via\n"
@@ -2027,13 +2019,13 @@ PYBIND11_MODULE(slughorn, m) {
 
 			.def("text_on_path",
 				&slughorn::canvas::Canvas::textOnPath,
-				py::arg("path"),
-				py::arg("s"),
-				py::arg("font_size"),
-				py::arg("start_frac"),
-				py::arg("color"),
-				py::arg("metrics"),
-				py::arg("anchor_y") = slughorn::canvas::TextAnchorY::Baseline,
+				"path"_a,
+				"s"_a,
+				"font_size"_a,
+				"start_frac"_a,
+				"color"_a,
+				"metrics"_a,
+				"anchor_y"_a=slughorn::canvas::TextAnchorY::Baseline,
 				"Place filled glyphs from s along path, each rotated to follow the tangent.\n\n"
 				"path is a slughorn.canvas.Path built with arc/move_to/etc.\n"
 				"start_frac in [0,1] is the normalized arc-length start position;\n"
@@ -2074,7 +2066,7 @@ PYBIND11_MODULE(slughorn, m) {
 			// return std::make_shared<slughorn::Atlas>(slughorn::serial::read(path));
 			return slughorn::serial::read(path);
 		},
-		py::arg("path"),
+		"path"_a,
 		"Load a .slug (JSON) or .slugb (binary) atlas file.\n"
 		"Format is auto-detected from the file header ('{' -> JSON, 'S' -> binary).\n"
 		"Returns a fully-built Atlas - is_built is True immediately.\n"
@@ -2086,7 +2078,7 @@ PYBIND11_MODULE(slughorn, m) {
 		[](const slughorn::Atlas& atlas, const std::string& path) {
 			slughorn::serial::write(atlas, path);
 		},
-		py::arg("atlas"), py::arg("path"),
+		"atlas"_a, "path"_a,
 		"Write a built Atlas to disk.\n"
 		"Extension determines format: .slug -> JSON + base64, .slugb -> binary.\n"
 		"Raises RuntimeError if the atlas is not built or the file cannot be written.\n"
@@ -2105,7 +2097,7 @@ PYBIND11_MODULE(slughorn, m) {
 	emoji.def("name_to_codepoint",
 		[](std::string_view name) -> std::optional<uint32_t> {
 			return slughorn::emoji::nameToCodepoint(name);
-		}, py::arg("name"),
+		}, "name"_a,
 		"Return the codepoint for a normalised CLDR short name, or None.\n"
 		"Example: slughorn.emoji.name_to_codepoint('dragon') -> 0x1F409"
 	);
@@ -2117,13 +2109,13 @@ PYBIND11_MODULE(slughorn, m) {
 			if(!sv) return std::nullopt;
 
 			return std::string(*sv);
-		}, py::arg("codepoint"),
+		}, "codepoint"_a,
 		"Return the CLDR short name for a codepoint, or None."
 	);
 
 	emoji.def("codepoint_at_index",
 		&slughorn::emoji::codepointAtIndex,
-		py::arg("index"),
+		"index"_a,
 		"Return the codepoint at position index in the sorted table.\n"
 		"Pair with table_size() to iterate the full table."
 	);
@@ -2131,14 +2123,14 @@ PYBIND11_MODULE(slughorn, m) {
 	emoji.def("strip_colons",
 		[](std::string_view name) -> std::string {
 			return std::string(slughorn::emoji::stripColons(name));
-		}, py::arg("name"),
+		}, "name"_a,
 		"Strip leading/trailing colons: ':dragon:' -> 'dragon'."
 	);
 
 	emoji.def("slack_name_to_codepoint",
 		[](std::string_view name) -> std::optional<uint32_t> {
 			return slughorn::emoji::slackNameToCodepoint(name);
-		}, py::arg("slack_name"),
+		}, "slack_name"_a,
 		"Strip colons then look up. ':dragon:' -> 0x1F409"
 	);
 
@@ -2177,11 +2169,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 			return slughorn::freetype::loadAsciiFont(fontPath, atlas, &config);
 		},
-		py::arg("font_path"),
-		py::arg("atlas"),
-		py::arg("strategy") = py::none(),
-		py::arg("uniform") = false,
-		py::arg("log") = py::none(),
+		"font_path"_a, "atlas"_a, "strategy"_a=py::none(), "uniform"_a=false, "log"_a=py::none(),
 		"Load printable ASCII (codepoints 32-126) from font_path into atlas.\n"
 		"Creates and destroys an FT_Library/FT_Face internally.\n"
 		"strategy: optional callable(curves) -> (splits_x, splits_y), e.g.:\n"
@@ -2205,12 +2193,12 @@ PYBIND11_MODULE(slughorn, m) {
 
 			return slughorn::freetype::loadFontGlyphs(fontPath, codepoints, atlas, &config);
 		},
-		py::arg("font_path"),
-		py::arg("codepoints"),
-		py::arg("atlas"),
-		py::arg("strategy") = py::none(),
-		py::arg("uniform") = false,
-		py::arg("log") = py::none(),
+		"font_path"_a,
+		"codepoints"_a,
+		"atlas"_a,
+		"strategy"_a=py::none(),
+		"uniform"_a=false,
+		"log"_a=py::none(),
 		"Load an explicit list of Unicode codepoints from font_path into atlas.\n"
 		"Creates and destroys an FT_Library/FT_Face internally.\n"
 		"strategy: optional callable(curves) -> (splits_x, splits_y).\n"
@@ -2232,11 +2220,7 @@ PYBIND11_MODULE(slughorn, m) {
 
 			return slughorn::freetype::loadAllFontGlyphs(fontPath, atlas, &config);
 		},
-		py::arg("font_path"),
-		py::arg("atlas"),
-		py::arg("strategy") = py::none(),
-		py::arg("uniform") = false,
-		py::arg("log") = py::none(),
+		"font_path"_a, "atlas"_a, "strategy"_a=py::none(), "uniform"_a=false, "log"_a=py::none(),
 		"Load every mapped codepoint from font_path into atlas.\n"
 		"Creates and destroys an FT_Library/FT_Face internally.\n"
 		"strategy: optional callable(curves) -> (splits_x, splits_y).\n"
@@ -2266,12 +2250,12 @@ PYBIND11_MODULE(slughorn, m) {
 
 		return result;
 	},
-		py::arg("font_path"),
-		py::arg("codepoints"),
-		py::arg("atlas"),
-		py::arg("strategy") = py::none(),
-		py::arg("uniform") = false,
-		py::arg("log") = py::none(),
+		"font_path"_a,
+		"codepoints"_a,
+		"atlas"_a,
+		"strategy"_a=py::none(),
+		"uniform"_a=false,
+		"log"_a=py::none(),
 		"Load COLR emoji from font_path for the given codepoints into atlas.\n"
 		"codepoints is a list of uint32_t Unicode codepoints.\n"
 		"Creates and destroys an FT_Library/FT_Face internally.\n"
@@ -2285,7 +2269,7 @@ PYBIND11_MODULE(slughorn, m) {
 		[](const std::string& fontPath) -> std::optional<slughorn::FontMetrics> {
 			return slughorn::freetype::loadFontMetrics(fontPath);
 		},
-		py::arg("font_path"),
+		"font_path"_a,
 		"Read em-space metrics from font_path and return a FontMetrics object.\n"
 		"Returns None if the font cannot be opened.\n"
 		"Safe to call before or independently of any load_* call."
@@ -2318,8 +2302,7 @@ PYBIND11_MODULE(slughorn, m) {
 			) {
 				return slughorn::nanosvg::ShapeRule{std::regex(pattern), policy};
 			}),
-			py::arg("id"),
-			py::arg("policy") = slughorn::nanosvg::ShapePolicy::Default,
+			"id"_a, "policy"_a=slughorn::nanosvg::ShapePolicy::Default,
 			"id is a regex matched against each SVG shape's id attribute.\n"
 			"policy controls whether matched shapes are force-included, excluded,\n"
 			"or stored as geometry-only (curves in atlas, no CompositeShape layer).");
@@ -2329,7 +2312,7 @@ PYBIND11_MODULE(slughorn, m) {
 				const std::string& path,
 				slughorn::Atlas& atlas,
 				slughorn::KeyIterator& keys,
-				float dpi,
+				slug_t dpi,
 				std::optional<slughorn::nanosvg::LogCallback> log,
 				std::vector<slughorn::nanosvg::ShapeRule> rules
 			) {
@@ -2339,12 +2322,12 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return slughorn::nanosvg::loadFile(path, atlas, keys, dpi, &config);
 			},
-			py::arg("path"),
-			py::arg("atlas"),
-			py::arg("keys") = slughorn::KeyIterator(),
-			py::arg("dpi") = 96.0f,
-			py::arg("log") = py::none(),
-			py::arg("rules") = std::vector<slughorn::nanosvg::ShapeRule>(),
+			"path"_a,
+			"atlas"_a,
+			"keys"_a=slughorn::KeyIterator(),
+			"dpi"_a=96.0f,
+			"log"_a=py::none(),
+			"rules"_a=std::vector<slughorn::nanosvg::ShapeRule>(),
 			"Parse an SVG file and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
@@ -2358,7 +2341,7 @@ PYBIND11_MODULE(slughorn, m) {
 				const std::string& svg,
 				slughorn::Atlas& atlas,
 				slughorn::KeyIterator& keys,
-				float dpi,
+				slug_t dpi,
 				std::optional<slughorn::nanosvg::LogCallback> log,
 				std::vector<slughorn::nanosvg::ShapeRule> rules
 			) {
@@ -2368,12 +2351,12 @@ PYBIND11_MODULE(slughorn, m) {
 
 				return slughorn::nanosvg::loadString(svg, atlas, keys, dpi, &config);
 			},
-			py::arg("svg"),
-			py::arg("atlas"),
-			py::arg("keys") = slughorn::KeyIterator(),
-			py::arg("dpi") = 96.0f,
-			py::arg("log") = py::none(),
-			py::arg("rules") = std::vector<slughorn::nanosvg::ShapeRule>(),
+			"svg"_a,
+			"atlas"_a,
+			"keys"_a=slughorn::KeyIterator(),
+			"dpi"_a=96.0f,
+			"log"_a=py::none(),
+			"rules"_a=std::vector<slughorn::nanosvg::ShapeRule>(),
 			"Parse an SVG string and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
