@@ -72,6 +72,7 @@ namespace skia {
 std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	const SkPath& path,
 	slug_t scale=1_cv,
+	bool autoMetrics=true,
 	Atlas::ShapeInfo::Origin origin={}
 );
 
@@ -167,7 +168,7 @@ static void splitConic(
 
 }
 
-std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t scale, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
 	if(path.isEmpty()) return { {}, {} };
 
 	const SkRect bounds = path.getBounds();
@@ -176,10 +177,12 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t 
 
 	// Translate path so its bounding box top-left sits at the origin.
 	// All curve coordinates then live in [0, width] x [0, height]; tight
-	// bands, no wasted em-space from canvas offset.
-	const SkPath local = path.makeTransform(
-		SkMatrix::Translate(-bounds.left(), -bounds.top())
-	);
+	// bands, no wasted em-space from canvas offset. Skipped when autoMetrics=false
+	// so that curves are stored exactly as authored.
+	const SkPath local = autoMetrics
+		? path.makeTransform(SkMatrix::Translate(-bounds.left(), -bounds.top()))
+		: path
+	;
 
 	Atlas::Curves curves;
 
@@ -255,15 +258,36 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t 
 		}
 	}
 
-	const Transform transform = (origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
+	const slug_t bx = cv(bounds.left()) * scale;
+	const slug_t by = cv(bounds.top()) * scale;
+	const slug_t offX = autoMetrics ? bx : 0_cv;
+	const slug_t offY = autoMetrics ? by : 0_cv;
+
+	Atlas::ShapeInfo::Origin infoOrigin = origin;
+
+	if(origin.type == Atlas::ShapeInfo::Origin::Type::Pivot) {
+		infoOrigin.x = origin.x * scale - offX;
+		infoOrigin.y = origin.y * scale - offY;
+	}
+	else if(origin.type == Atlas::ShapeInfo::Origin::Type::Custom) {
+		infoOrigin.x = origin.x * scale;
+		infoOrigin.y = origin.y * scale;
+	}
+
+	const Transform transform = !autoMetrics ? Transform{} :
+		(origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
 		? Transform{ cv(bounds.centerX()) * scale, cv(bounds.centerY()) * scale }
-		: Transform{ cv(bounds.left()) * scale, cv(bounds.top()) * scale }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Pivot)
+		? Transform{ origin.x * scale, origin.y * scale }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Custom)
+		? Transform{ bx + origin.x * scale, by + origin.y * scale }
+		: Transform{ bx, by }
 	;
 
 	Atlas::ShapeInfo info;
 
 	info.curves = std::move(curves);
-	info.origin = origin;
+	info.origin = infoOrigin;
 
 	return { std::move(info), transform };
 }
@@ -292,7 +316,7 @@ Transform loadShape(
 	bool autoMetrics,
 	Atlas::ShapeInfo::Origin origin
 ) {
-	auto [info, transform] = decomposePath(path, scale, origin);
+	auto [info, transform] = decomposePath(path, scale, autoMetrics, origin);
 
 	if(info.curves.empty()) return {};
 

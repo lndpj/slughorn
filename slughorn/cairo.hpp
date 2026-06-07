@@ -20,11 +20,11 @@
 // cairo_copy_path() returns coordinates in user space, unaffected by the CTM. Author path
 // coordinates directly and pass the appropriate scale to normalize them.
 //
-// decomposePath() always shifts curves to local origin (tight atlas bands) and returns both
-// the curves and the offset that was subtracted as a Transform. If you don't need positional
-// information, ignore the returned Transform. If you are compositing multiple shapes, store the
-// returned Transform in Layer::transform so the renderer can restore the correct canvas position
-// at draw time.
+// decomposePath() shifts curves to local origin when autoMetrics=true (tight atlas bands) and
+// returns both the curves and the offset that was subtracted as a Transform. When autoMetrics=false,
+// curves are stored as-is and the returned Transform is zero. If you are compositing multiple shapes,
+// store the returned Transform in Layer::transform so the renderer can restore the correct canvas
+// position at draw time.
 //
 // STROKE LIMITATION
 // -----------------
@@ -63,6 +63,7 @@ namespace cairo {
 std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	cairo_t* cr,
 	slug_t scale=1_cv,
+	bool autoMetrics=true,
 	Atlas::ShapeInfo::Origin origin={}
 );
 
@@ -92,13 +93,15 @@ Transform loadShape(
 namespace slughorn {
 namespace cairo {
 
-std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
 	double x1, y1, x2, y2;
 
 	cairo_path_extents(cr, &x1, &y1, &x2, &y2);
 
 	const slug_t ox = cv(x1) * scale;
 	const slug_t oy = cv(y1) * scale;
+	const slug_t offX = autoMetrics ? ox : 0_cv;
+	const slug_t offY = autoMetrics ? oy : 0_cv;
 
 	Atlas::Curves curves;
 
@@ -138,27 +141,44 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, 
 
 	cairo_path_destroy(path);
 
-	// Shift all curves to local origin.
-	for(auto& c : curves) {
-		c.x1 -= ox; c.x2 -= ox; c.x3 -= ox;
-		c.y1 -= oy; c.y2 -= oy; c.y3 -= oy;
+	if(autoMetrics) {
+		for(auto& c : curves) {
+			c.x1 -= ox; c.x2 -= ox; c.x3 -= ox;
+			c.y1 -= oy; c.y2 -= oy; c.y3 -= oy;
+		}
 	}
 
-	const Transform transform = (origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
+	Atlas::ShapeInfo::Origin infoOrigin = origin;
+
+	if(origin.type == Atlas::ShapeInfo::Origin::Type::Pivot) {
+		infoOrigin.x = origin.x * scale - offX;
+		infoOrigin.y = origin.y * scale - offY;
+	}
+	else if(origin.type == Atlas::ShapeInfo::Origin::Type::Custom) {
+		infoOrigin.x = origin.x * scale;
+		infoOrigin.y = origin.y * scale;
+	}
+
+	const Transform transform = !autoMetrics ? Transform{} :
+		(origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
 		? Transform{ cv(x1 + x2) * 0.5_cv * scale, cv(y1 + y2) * 0.5_cv * scale }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Pivot)
+		? Transform{ origin.x * scale, origin.y * scale }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Custom)
+		? Transform{ ox + origin.x * scale, oy + origin.y * scale }
 		: Transform{ ox, oy }
 	;
 
 	Atlas::ShapeInfo info;
 
 	info.curves = std::move(curves);
-	info.origin = origin;
+	info.origin = infoOrigin;
 
 	return { std::move(info), transform };
 }
 
 Transform loadShape(cairo_t* cr, Atlas& atlas, Key key, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
-	auto [info, transform] = decomposePath(cr, scale, origin);
+	auto [info, transform] = decomposePath(cr, scale, autoMetrics, origin);
 
 	if(info.curves.empty()) return {};
 

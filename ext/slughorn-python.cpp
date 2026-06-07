@@ -2354,9 +2354,10 @@ PYBIND11_MODULE(slughorn, m) {
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
 			"omit to print to stderr.\n"
 			"rules is a list of ShapeRule objects applied in order; first match wins.\n"
-			"auto_metrics: when True (default) derive shape metrics from curve bbox.\n"
-			"Coordinates are always normalized to [0,1] em-space (scale = 1/image_width).\n"
-			"Multiply layer.transform.x/y by cfg.width/cfg.height to recover authoring coords.\n"
+			"auto_metrics: when True (default) curves are shifted to local origin and shape\n"
+			"metrics are derived from the curve bbox; layer.transform.x/y carries the offset\n"
+			"(multiply by image width/height to recover authoring coords). When False, curves\n"
+			"are stored as-is in SVG canvas space and layer.transform is zero.\n"
 			"origin: global origin for all shapes (overridden per-shape by ShapeRule.origin)."
 		);
 
@@ -2391,9 +2392,10 @@ PYBIND11_MODULE(slughorn, m) {
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
 			"omit to print to stderr.\n"
 			"rules is a list of ShapeRule objects applied in order; first match wins.\n"
-			"auto_metrics: when True (default) derive shape metrics from curve bbox.\n"
-			"Coordinates are always normalized to [0,1] em-space (scale = 1/image_width).\n"
-			"Multiply layer.transform.x/y by cfg.width/cfg.height to recover authoring coords.\n"
+			"auto_metrics: when True (default) curves are shifted to local origin and shape\n"
+			"metrics are derived from the curve bbox; layer.transform.x/y carries the offset\n"
+			"(multiply by image width/height to recover authoring coords). When False, curves\n"
+			"are stored as-is in SVG canvas space and layer.transform is zero.\n"
 			"origin: global origin for all shapes (overridden per-shape by ShapeRule.origin)."
 		);
 	}

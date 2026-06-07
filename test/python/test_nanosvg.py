@@ -351,6 +351,43 @@ def test_load_string_auto_metrics_true(atlas):
 	composite = slughorn.nanosvg.load_string(_SVG_TWO_SOLIDS, atlas, auto_metrics=True)
 	assert len(composite) == 2
 
+def test_load_string_auto_metrics_false_transform_zero(atlas):
+	# With auto_metrics=False the origin shift is suppressed; layer.transform must be (0, 0).
+	composite = slughorn.nanosvg.load_string(_SVG_ONE_SOLID, atlas, auto_metrics=False)
+	assert len(composite) == 1
+	layer = composite.layers[0]
+	assert layer.transform.x == pytest.approx(0.0, abs=1e-5)
+	assert layer.transform.y == pytest.approx(0.0, abs=1e-5)
+
+def test_load_string_auto_metrics_false_square_metrics(atlas):
+	# _SVG_ONE_SOLID is a 100x100 SVG. With auto_metrics=False the declared canvas is
+	# the full viewport: width=1.0, height=1.0 (heightEm = 100/100 = 1.0).
+	composite = slughorn.nanosvg.load_string(_SVG_ONE_SOLID, atlas, auto_metrics=False)
+	atlas.build()
+	shape = atlas.get_shape(composite.layers[0].key)
+	assert shape is not None
+	assert shape.width  == pytest.approx(1.0, abs=1e-3)
+	assert shape.height == pytest.approx(1.0, abs=1e-3)
+
+def test_load_string_auto_metrics_false_non_square_metrics(atlas):
+	# _SVG_TWO_SOLIDS is a 200x100 SVG. heightEm = 100/200 = 0.5.
+	# Both shapes should declare width=1.0, height=0.5 (the full viewport).
+	composite = slughorn.nanosvg.load_string(_SVG_TWO_SOLIDS, atlas, auto_metrics=False)
+	atlas.build()
+	for layer in composite.layers:
+		shape = atlas.get_shape(layer.key)
+		assert shape is not None
+		assert shape.width  == pytest.approx(1.0, abs=1e-3)
+		assert shape.height == pytest.approx(0.5, abs=1e-3)
+
+def test_load_string_auto_metrics_false_renderable(atlas):
+	# Shapes loaded with auto_metrics=False must still build and render without crashing.
+	composite = slughorn.nanosvg.load_string(_SVG_ONE_SOLID, atlas, auto_metrics=False)
+	atlas.build()
+	grid = atlas.decode(composite.layers[0].key).render_grid(32, 0.0, True)
+	flat = memoryview(grid).cast('B').cast('f')
+	assert max(flat) > 0.5, "solid rect with auto_metrics=False must still render with coverage"
+
 
 # ---------------------------------------------------------------------------
 # ShapeRule.origin override

@@ -165,8 +165,12 @@ inline Color colorFromNSVG(unsigned int packed) {
 // ================================================================================================
 // decomposePath
 //
-// Decompose a single NSVGshape into slughorn curves, shifted to local origin for tight atlas bands.
-// Mirrors slughorn::cairo::decomposePath exactly.
+// Decompose a single NSVGshape into slughorn curves. Mirrors slughorn::cairo::decomposePath exactly.
+//
+// When autoMetrics=true (default), curves are shifted to local origin for tight atlas bands and the
+// returned Transform carries the offset. When autoMetrics=false, curves are stored as-is and the
+// returned Transform is zero; use this when curves are already in the target coordinate system
+// (e.g. GPU tiling via fract()).
 //
 // @p scale normalizes SVG canvas coordinates into em-space. For direct use, pass 1/image->width.
 // loadImage/loadFile/loadString handle this automatically.
@@ -175,16 +179,17 @@ inline Color colorFromNSVG(unsigned int packed) {
 // Store the Transform in Layer::transform for correct composite positioning. Returns an empty ShapeInfo
 // if the shape has no paths or a zero bounding box.
 //
-// The returned transform depends on @p origin:
+// The returned transform (when autoMetrics=true) depends on @p origin:
 //
-// Origin::Default - transform.dx/dy = bbox corner * scale.
-// Origin::Centered - transform.dx/dy = bbox center * scale; computeQuad still places the quad at
+// Origin::Default - transform.x/y = bbox corner * scale.
+// Origin::Centered - transform.x/y = bbox center * scale; computeQuad still places the quad at
 // the correct canvas position, and the transform acts as a pivot point.
 // ================================================================================================
 std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	const NSVGshape* shape,
 	slug_t scale=1_cv,
-	Atlas::ShapeInfo::Origin origin={}
+	Atlas::ShapeInfo::Origin origin={},
+	bool autoMetrics=true
 );
 
 // ================================================================================================
@@ -195,14 +200,21 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 //
 // Returns the canvas-space offset as a Transform on success. Returns std::nullopt and does NOT call
 // addShape if the path produces no curves or has a degenerate (zero-area) bounding box.
+//
+// @p canvasHeightEm is only used when autoMetrics=false. It declares the full SVG viewport height
+// in em-space (image->height / image->width) so that buildShapeBands can calibrate bands over the
+// full canvas rather than the tight curve bbox. loadImage passes cfg.heightEm automatically;
+// direct callers must supply it when using autoMetrics=false, or leave it at 0 to fall back to
+// tight-bbox behavior (same as autoMetrics=true).
 // ================================================================================================
 std::optional<Transform> loadShape(
 	const NSVGshape* shape,
 	Atlas& atlas,
 	Key key,
 	slug_t scale=1_cv,
+	Atlas::ShapeInfo::Origin origin={},
 	bool autoMetrics=true,
-	Atlas::ShapeInfo::Origin origin={}
+	slug_t canvasHeightEm=0_cv
 );
 
 // ================================================================================================
@@ -312,7 +324,7 @@ static size_t rayCrossings(const Atlas::Curves& curves, size_t end, slug_t px, s
 	return count;
 }
 
-std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slug_t scale, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slug_t scale, Atlas::ShapeInfo::Origin origin, bool autoMetrics) {
 	// NanoSVG pre-computes the bounding box for each shape.
 	const slug_t minX = cv(shape->bounds[0]) * scale;
 	const slug_t minY = cv(shape->bounds[1]) * scale;
@@ -320,6 +332,9 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slu
 	const slug_t maxY = cv(shape->bounds[3]) * scale;
 
 	if(maxX <= minX || maxY <= minY) return { {}, {} };
+
+	const slug_t offX = autoMetrics ? minX : 0_cv;
+	const slug_t offY = autoMetrics ? minY : 0_cv;
 
 	Atlas::Curves curves;
 
@@ -340,8 +355,8 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slu
 
 		const slug_t* p = path->pts;
 
-		const slug_t startX = cv(p[0]) * scale - minX;
-		const slug_t startY = cv(p[1]) * scale - minY;
+		const slug_t startX = cv(p[0]) * scale - offX;
+		const slug_t startY = cv(p[1]) * scale - offY;
 		const size_t subpathStart = decomposer.mark();
 
 		decomposer.moveTo(startX, startY);
@@ -350,9 +365,9 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slu
 			p = path->pts + i * 2;
 
 			decomposer.cubicTo(
-				cv(p[2]) * scale - minX, cv(p[3]) * scale - minY,
-				cv(p[4]) * scale - minX, cv(p[5]) * scale - minY,
-				cv(p[6]) * scale - minX, cv(p[7]) * scale - minY
+				cv(p[2]) * scale - offX, cv(p[3]) * scale - offY,
+				cv(p[4]) * scale - offX, cv(p[5]) * scale - offY,
+				cv(p[6]) * scale - offX, cv(p[7]) * scale - offY
 			);
 		}
 
@@ -370,25 +385,53 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slu
 
 	if(curves.empty()) return { {}, {} };
 
-	const Transform transform = (origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
+	Atlas::ShapeInfo::Origin infoOrigin = origin;
+
+	if(origin.type == Atlas::ShapeInfo::Origin::Type::Pivot) {
+		infoOrigin.x = origin.x * scale - offX;
+		infoOrigin.y = origin.y * scale - offY;
+	}
+	else if(origin.type == Atlas::ShapeInfo::Origin::Type::Custom) {
+		infoOrigin.x = origin.x * scale;
+		infoOrigin.y = origin.y * scale;
+	}
+
+	const Transform transform = !autoMetrics ? Transform{} :
+		(origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
 		? Transform{ (minX + maxX) * 0.5_cv, (minY + maxY) * 0.5_cv }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Pivot)
+		? Transform{ origin.x * scale, origin.y * scale }
+		: (origin.type == Atlas::ShapeInfo::Origin::Type::Custom)
+		? Transform{ minX + origin.x * scale, minY + origin.y * scale }
 		: Transform{ minX, minY }
 	;
 
 	Atlas::ShapeInfo info;
 
 	info.curves = std::move(curves);
-	info.origin = origin;
+	info.origin = infoOrigin;
 
 	return { std::move(info), transform };
 }
 
-std::optional<Transform> loadShape(const NSVGshape* shape, Atlas& atlas, Key key, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
-	auto [info, transform] = decomposePath(shape, scale, origin);
+std::optional<Transform> loadShape(const NSVGshape* shape, Atlas& atlas, Key key, slug_t scale, Atlas::ShapeInfo::Origin origin, bool autoMetrics, slug_t canvasHeightEm) {
+	auto [info, transform] = decomposePath(shape, scale, origin, autoMetrics);
 
 	if(info.curves.empty()) return std::nullopt;
 
 	info.autoMetrics = autoMetrics;
+
+	if(!autoMetrics) {
+		// Declare the full SVG viewport as the band extent so buildShapeBands
+		// calibrates bands over the whole canvas, not just the tight curve bbox.
+		// Falls back to a unit square if the caller didn't supply heightEm.
+		const slug_t h = canvasHeightEm > 0_cv ? canvasHeightEm : 1_cv;
+
+		info.bearingX = 0_cv;
+		info.bearingY = h;
+		info.width    = 1_cv;
+		info.height   = h;
+	}
 
 	atlas.addShape(key, info);
 
@@ -606,7 +649,7 @@ CompositeShape loadImage(
 			: cfg.origin
 		;
 
-		const auto transform = loadShape(shape, atlas, key, scale, cfg.autoMetrics, shapeOrigin);
+		const auto transform = loadShape(shape, atlas, key, scale, shapeOrigin, cfg.autoMetrics, cfg.heightEm);
 
 		if(!transform) continue;
 
