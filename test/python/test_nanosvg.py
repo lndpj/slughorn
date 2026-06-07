@@ -287,20 +287,85 @@ def test_shape_rule_geometry_only(atlas):
 	sp    = slughorn.nanosvg.ShapePolicy
 	rules = [slughorn.nanosvg.ShapeRule("geo", sp.GeometryOnly)]
 	composite = slughorn.nanosvg.load_string(_SVG_WITH_IDS, atlas, rules=rules)
-	# "geo" shape has curves but no layer in the composite.
-	assert len(composite) == 2, f"expected 2 layers after GeometryOnly, got {len(composite)}"
+	# "geo" is present in composite with visible=False; 2 layers are visible.
+	assert len(composite) == 3, f"expected 3 total layers (geo=invisible), got {len(composite)}"
+	visible = [l for l in composite.layers if l.visible]
+	assert len(visible) == 2, f"expected 2 visible layers, got {len(visible)}"
+
+def test_shape_rule_geometry_only_layer_invisible(atlas):
+	sp    = slughorn.nanosvg.ShapePolicy
+	rules = [slughorn.nanosvg.ShapeRule("geo", sp.GeometryOnly)]
+	composite = slughorn.nanosvg.load_string(_SVG_WITH_IDS, atlas, rules=rules)
+	geo_layers = [l for l in composite.layers if not l.visible]
+	assert len(geo_layers) == 1, "expected exactly one invisible (geometry-only) layer"
 
 def test_shape_rule_geometry_only_shape_in_atlas(atlas):
 	sp    = slughorn.nanosvg.ShapePolicy
 	rules = [slughorn.nanosvg.ShapeRule("geo", sp.GeometryOnly)]
 	composite = slughorn.nanosvg.load_string(_SVG_WITH_IDS, atlas, rules=rules)
 	atlas.build()
-	# Even though there's no layer, the shape data must still be in the atlas.
-	all_keys = [layer.key for layer in composite.layers]
-	# We can't query "geo" directly because we don't know its key — but we can verify
-	# the atlas built without error and the two visible shapes are present.
-	for key in all_keys:
-		assert atlas.get_shape(key) is not None
+	# All layers (visible and invisible) must resolve in the atlas.
+	for layer in composite.layers:
+		assert atlas.get_shape(layer.key) is not None
+
+def test_shape_rule_geometry_only_transform_accessible(atlas):
+	# GeometryOnly layers carry the shape's bbox transform so callers don't need
+	# a separate lookup map.
+	sp    = slughorn.nanosvg.ShapePolicy
+	rules = [slughorn.nanosvg.ShapeRule("geo", sp.GeometryOnly)]
+	composite = slughorn.nanosvg.load_string(_SVG_WITH_IDS, atlas, rules=rules)
+	geo_layer = next(l for l in composite.layers if not l.visible)
+	# "geo" rect starts at x=200 in a 300-wide SVG; normalized: 200/300 ≈ 0.667.
+	assert geo_layer.transform.x == pytest.approx(200.0 / 300.0, abs=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Layer.visible field
+# ---------------------------------------------------------------------------
+
+def test_layer_visible_defaults_true(atlas):
+	composite = slughorn.nanosvg.load_string(_SVG_ONE_SOLID, atlas)
+	assert composite.layers[0].visible is True
+
+def test_layer_visible_settable():
+	layer = slughorn.Layer("test")
+	assert layer.visible is True
+	layer.visible = False
+	assert layer.visible is False
+
+
+# ---------------------------------------------------------------------------
+# LoadConfig: auto_metrics / scale / origin
+# ---------------------------------------------------------------------------
+
+def test_load_string_normalized(atlas):
+	# Normalization is always applied (scale = 1/image_width unconditionally).
+	# _SVG_ONE_SOLID: 100-wide SVG, rect x=10 → transform.x = 10/100 = 0.1.
+	composite = slughorn.nanosvg.load_string(_SVG_ONE_SOLID, atlas)
+	layer = composite.layers[0]
+	assert layer.transform.x == pytest.approx(0.1, abs=1e-3)
+	assert layer.transform.y == pytest.approx(0.1, abs=1e-3)
+
+def test_load_string_auto_metrics_true(atlas):
+	# With auto_metrics=True (default) all shapes succeed; metrics derived from curves.
+	composite = slughorn.nanosvg.load_string(_SVG_TWO_SOLIDS, atlas, auto_metrics=True)
+	assert len(composite) == 2
+
+
+# ---------------------------------------------------------------------------
+# ShapeRule.origin override
+# ---------------------------------------------------------------------------
+
+def test_shape_rule_origin_centered(atlas):
+	sp     = slughorn.nanosvg.ShapePolicy
+	origin = slughorn.ShapeInfo.Origin(slughorn.ShapeInfo.Origin.Type.Centered)
+	rules  = [slughorn.nanosvg.ShapeRule("keep", sp.Default, origin)]
+	composite = slughorn.nanosvg.load_string(_SVG_WITH_IDS, atlas, rules=rules)
+	# "keep" rect is x=0..100, y=0..100; Centered → center at (50, 50), normalized by 1/300.
+	# SVG shape id "keep" becomes Key("keep").
+	keep_layer = next(l for l in composite.layers if l.key == slughorn.Key("keep"))
+	assert keep_layer.transform.x == pytest.approx(50.0 / 300.0, abs=1e-3)
+	assert keep_layer.transform.y == pytest.approx(50.0 / 300.0, abs=1e-3)
 
 
 # ---------------------------------------------------------------------------

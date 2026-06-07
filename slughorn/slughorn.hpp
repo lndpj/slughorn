@@ -338,6 +338,10 @@ struct Layer {
 	// The default (0.01) prevents gap artifacts at quad boundaries. Set to 0 for shapes that
 	// use setAutoMetrics(false) so that em-coords stay exactly in [0,1] for GPU tiling.
 	slug_t expand = 0.01_cv;
+
+	// When false the layer is excluded from rendering but still present in CompositeShape::layers.
+	// Used by GeometryOnly shapes so their transform is accessible without a separate lookup.
+	bool visible = true;
 };
 
 // ================================================================================================
@@ -1420,7 +1424,8 @@ inline std::ostream& operator<<(std::ostream& os, const Layer& l) {
 		<< " scale=" << l.scale
 		<< " effectId=" << l.effectId
 		<< " gradientId=" << l.gradientId
-		<< " expand=" << l.expand << ")"
+		<< " expand=" << l.expand
+		<< (l.visible ? "" : " [geometry-only]") << ")"
 	;
 }
 

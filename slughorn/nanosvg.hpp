@@ -14,9 +14,9 @@
 // loadFile() - convenience: parse file + loadImage
 // loadString() - convenience: parse string + loadImage
 //
-// Scale is always auto-computed from image->width (1/image->width), normalizing
-// all coordinates to [0,1] em-space. It is never exposed as a caller parameter.
-// World sizing is the caller's responsibility via MatrixTransform or equivalent.
+// SVG coordinates are always normalized to [0, 1] em-space (scale = 1/image->width).
+// To recover authoring-space positions, multiply layer.transform.x/y by cfg.width/cfg.height.
+// World sizing is the caller's responsibility via Layer::scale or MatrixTransform.
 //
 // USAGE
 // -----
@@ -34,7 +34,7 @@
 //   pre-flattened cubic chains
 // - Fill color unpacked from NanoSVG's packed ABGR uint32
 // - Per-shape local coordinate decomposition (tight bands, zero offset waste)
-// - Auto-scale from SVG viewBox width (always 1/image->width)
+// - Always-normalized em-space (scale = 1/image->width unconditionally)
 //
 // WHAT IS SUPPORTED
 // -----------------
@@ -73,6 +73,7 @@ SLUGHORN_IGNORE("-Wsign-conversion")
 SLUGHORN_DIAGNOSTIC_POP()
 
 #include <functional>
+#include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -109,6 +110,9 @@ struct ShapeRule {
 	std::regex id;
 
 	ShapePolicy policy = ShapePolicy::Default;
+
+	// When set, overrides LoadConfig::origin for shapes matching this rule.
+	std::optional<Atlas::ShapeInfo::Origin> origin = std::nullopt;
 };
 
 struct LoadConfig {
@@ -117,14 +121,32 @@ struct LoadConfig {
 
 	std::vector<ShapeRule> rules;
 
+	// If true (default), build() derives width/height/bearing from the actual curve bounding box.
+	// If false, the caller must pre-populate ShapeInfo metrics before addShape().
+	bool autoMetrics = true;
+
+	// Origin applied to all shapes unless overridden by a matching ShapeRule::origin.
+	Atlas::ShapeInfo::Origin origin = {};
+
 	// Output fields.
 	//
 	// Populated by loadImage/loadFile/loadString after a successful parse.
-	// widthEm is always 1.0 (the normalization convention); heightEm = height / width.
+	// These reflect the raw SVG dimensions regardless of which scale was used.
 	slug_t width = 0.0f;
 	slug_t height = 0.0f;
 	slug_t heightEm = 0_cv;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const LoadConfig& c) {
+	return os
+		<< "LoadConfig("
+		<< "width=" << c.width
+		<< " height=" << c.height
+		<< " heightEm=" << c.heightEm
+		<< " autoMetrics=" << c.autoMetrics
+		<< ")"
+	;
+}
 
 // ================================================================================================
 // colorFromNSVG
@@ -149,8 +171,8 @@ inline Color colorFromNSVG(unsigned int packed) {
 // @p scale normalizes SVG canvas coordinates into em-space. For direct use, pass 1/image->width.
 // loadImage/loadFile/loadString handle this automatically.
 //
-// Returns a ShapeInfo (curves and origin pre-set) and a Matrix (dx/dy only; xx/yy are identity).
-// Store the Matrix in Layer::transform for correct composite positioning. Returns an empty ShapeInfo
+// Returns a ShapeInfo (curves and origin pre-set) and a Transform (x/y only).
+// Store the Transform in Layer::transform for correct composite positioning. Returns an empty ShapeInfo
 // if the shape has no paths or a zero bounding box.
 //
 // The returned transform depends on @p origin:
@@ -159,7 +181,7 @@ inline Color colorFromNSVG(unsigned int packed) {
 // Origin::Centered - transform.dx/dy = bbox center * scale; computeQuad still places the quad at
 // the correct canvas position, and the transform acts as a pivot point.
 // ================================================================================================
-std::pair<Atlas::ShapeInfo, Matrix> decomposePath(
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	const NSVGshape* shape,
 	slug_t scale=1_cv,
 	Atlas::ShapeInfo::Origin origin={}
@@ -171,15 +193,15 @@ std::pair<Atlas::ShapeInfo, Matrix> decomposePath(
 // Decompose @p shape and register it in @p atlas under @p key. Mirrors slughorn::cairo::loadShape
 // exactly.
 //
-// Returns the canvas-space offset as a Matrix (see decomposePath). Store it in Layer::transform for
-// correct composite positioning. Returns an identity Matrix and does NOT call addShape if the path
-// produces no curves.
+// Returns the canvas-space offset as a Transform on success. Returns std::nullopt and does NOT call
+// addShape if the path produces no curves or has a degenerate (zero-area) bounding box.
 // ================================================================================================
-Matrix loadShape(
+std::optional<Transform> loadShape(
 	const NSVGshape* shape,
 	Atlas& atlas,
 	Key key,
 	slug_t scale=1_cv,
+	bool autoMetrics=true,
 	Atlas::ShapeInfo::Origin origin={}
 );
 
@@ -189,8 +211,8 @@ Matrix loadShape(
 // Parse an entire NSVGimage into a CompositeShape - one Layer per filled
 // NSVGshape, back-to-front order preserved.
 //
-// Scale is always auto-computed as 1/image->width, normalizing the SVG canvas
-// to [0,1] em-space. Keys are allocated via @p keys (KeyIterator); on return
+// Scale is always 1/image->width (unconditional normalization). Keys are allocated
+// via @p keys (KeyIterator); on return
 // keys.counter is advanced past the last key used. Pass a named KeyIterator
 // (e.g. KeyIterator("logo")) to produce named keys like "logo_0", "logo_1", ...
 //
@@ -290,14 +312,14 @@ static size_t rayCrossings(const Atlas::Curves& curves, size_t end, slug_t px, s
 	return count;
 }
 
-std::pair<Atlas::ShapeInfo, Matrix> decomposePath(const NSVGshape* shape, slug_t scale, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(const NSVGshape* shape, slug_t scale, Atlas::ShapeInfo::Origin origin) {
 	// NanoSVG pre-computes the bounding box for each shape.
 	const slug_t minX = cv(shape->bounds[0]) * scale;
 	const slug_t minY = cv(shape->bounds[1]) * scale;
 	const slug_t maxX = cv(shape->bounds[2]) * scale;
 	const slug_t maxY = cv(shape->bounds[3]) * scale;
 
-	if(maxX <= minX || maxY <= minY) return { {}, Matrix::identity() };
+	if(maxX <= minX || maxY <= minY) return { {}, {} };
 
 	Atlas::Curves curves;
 
@@ -346,19 +368,12 @@ std::pair<Atlas::ShapeInfo, Matrix> decomposePath(const NSVGshape* shape, slug_t
 		}
 	}
 
-	if(curves.empty()) return { {}, Matrix::identity() };
+	if(curves.empty()) return { {}, {} };
 
-	Matrix transform = Matrix::identity();
-
-	if(origin.type == Atlas::ShapeInfo::Origin::Type::Centered) {
-		transform.dx = (minX + maxX) * 0.5_cv;
-		transform.dy = (minY + maxY) * 0.5_cv;
-	}
-
-	else {
-		transform.dx = minX;
-		transform.dy = minY;
-	}
+	const Transform transform = (origin.type == Atlas::ShapeInfo::Origin::Type::Centered)
+		? Transform{ (minX + maxX) * 0.5_cv, (minY + maxY) * 0.5_cv }
+		: Transform{ minX, minY }
+	;
 
 	Atlas::ShapeInfo info;
 
@@ -368,10 +383,12 @@ std::pair<Atlas::ShapeInfo, Matrix> decomposePath(const NSVGshape* shape, slug_t
 	return { std::move(info), transform };
 }
 
-Matrix loadShape(const NSVGshape* shape, Atlas& atlas, Key key, slug_t scale, Atlas::ShapeInfo::Origin origin) {
+std::optional<Transform> loadShape(const NSVGshape* shape, Atlas& atlas, Key key, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
 	auto [info, transform] = decomposePath(shape, scale, origin);
 
-	if(info.curves.empty()) return Matrix::identity();
+	if(info.curves.empty()) return std::nullopt;
+
+	info.autoMetrics = autoMetrics;
 
 	atlas.addShape(key, info);
 
@@ -584,17 +601,23 @@ CompositeShape loadImage(
 
 		const Key key = (!keys.force && shape->id[0] != '\0') ? Key(shape->id) : keys.next();
 
-		Matrix transform = loadShape(shape, atlas, key, scale);
+		const Atlas::ShapeInfo::Origin shapeOrigin = (rule && rule->origin)
+			? *rule->origin
+			: cfg.origin
+		;
 
-		if(geometryOnly) continue;
+		const auto transform = loadShape(shape, atlas, key, scale, cfg.autoMetrics, shapeOrigin);
+
+		if(!transform) continue;
 
 		// layer.scale is intentionally not set - world sizing is the caller's
 		// responsibility. layer.scale remains at its default of 1.0.
 		Layer layer{
 			.key = key,
 			.color = color,
-			.transform = {.x = transform.dx, .y = transform.dy},
-			.gradientId = gradientId
+			.transform = *transform,
+			.gradientId = gradientId,
+			.visible = !geometryOnly
 		};
 
 		composite.layers.push_back(layer);

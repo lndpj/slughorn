@@ -59,7 +59,7 @@ void test_Shape() {
 	if(shape) {
 		std::cout << *shape << std::endl;
 
-		auto quad = shape->computeQuad(slughorn::Transform{transform.dx, transform.dy});
+		auto quad = shape->computeQuad(slughorn::Transform{transform.x, transform.y});
 
 		std::cout << quad << std::endl;
 	}
@@ -124,7 +124,7 @@ void test_CompositeShape() {
 
 		atlas.addShape(key, info);
 
-		compositeShape.layers.push_back({key, {1_cv, 1_cv, 1_cv, 1_cv}, slughorn::Transform{transform.dx, transform.dy}});
+		compositeShape.layers.push_back({key, {1_cv, 1_cv, 1_cv, 1_cv}, slughorn::Transform{transform.x, transform.y}});
 	}
 
 	// -------------------------------------------------------------------------

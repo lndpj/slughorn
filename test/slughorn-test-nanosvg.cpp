@@ -222,8 +222,8 @@ void test_Shape() {
 	check("all curves in [0,1]", inRange);
 
 	// Transform: shape is at canvas origin so dx=0, dy=0
-	checkNear("transform.dx == 0", transform.dx, 0_cv);
-	checkNear("transform.dy == 0", transform.dy, 0_cv);
+	checkNear("transform.x == 0", transform.x, 0_cv);
+	checkNear("transform.y == 0", transform.y, 0_cv);
 
 	slughorn::Atlas atlas;
 
@@ -242,7 +242,7 @@ void test_Shape() {
 		checkNear("bearingX == 0", s->bearingX, 0_cv);
 		checkNear("bearingY == 1", s->bearingY, 1_cv);
 
-		auto q = s->computeQuad(slughorn::Transform{transform.dx, transform.dy});
+		auto q = s->computeQuad(slughorn::Transform{transform.x, transform.y});
 		std::cout << "  " << q << std::endl;
 
 		checkNear("quad.x0 == 0", q.x0, 0_cv);

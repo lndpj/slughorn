@@ -234,11 +234,16 @@ inline slughorn::freetype::LoadConfig makeLoadConfig(
 #endif
 
 inline slughorn::nanosvg::LoadConfig makeNanosvgLoadConfig(
-	std::optional<slughorn::nanosvg::LogCallback> log
+	std::optional<slughorn::nanosvg::LogCallback> log,
+	bool autoMetrics = true,
+	slughorn::Atlas::ShapeInfo::Origin origin = {}
 ) {
 	slughorn::nanosvg::LoadConfig config;
 
 	if(log) config.log = *log;
+
+	config.autoMetrics = autoMetrics;
+	config.origin = origin;
 
 	return config;
 }
@@ -527,7 +532,8 @@ PYBIND11_MODULE(slughorn, m) {
 				slug_t scale,
 				uint32_t effectId,
 				uint32_t gradientId,
-				slug_t expand
+				slug_t expand,
+				bool visible
 			) {
 				slughorn::Layer layer;
 
@@ -544,6 +550,7 @@ PYBIND11_MODULE(slughorn, m) {
 				layer.effectId = effectId;
 				layer.gradientId = gradientId;
 				layer.expand = expand;
+				layer.visible = visible;
 
 				return layer;
 			}),
@@ -553,7 +560,8 @@ PYBIND11_MODULE(slughorn, m) {
 			"scale"_a=1_cv,
 			"effectId"_a=0,
 			"gradientId"_a=0,
-			"expand"_a=0.01_cv
+			"expand"_a=0.01_cv,
+			"visible"_a=true
 		)
 
 		.def_readwrite("key", &slughorn::Layer::key,
@@ -582,6 +590,10 @@ PYBIND11_MODULE(slughorn, m) {
 			"Extra em-space margin added to the quad on each side (default 0.01). "
 			"Set to 0 for shapes authored with canvas.set_auto_metrics(False) so that "
 			"em-coords stay exactly in [0,1] for GPU tiling.")
+		.def_readwrite("visible", &slughorn::Layer::visible,
+			"When False the layer is excluded from rendering but still present in "
+			"CompositeShape.layers. GeometryOnly shapes use visible=False so their "
+			"transform is accessible without a separate lookup.")
 		.def("__repr__", [](const slughorn::Layer& l) { return streamRepr(l); })
 	;
 
@@ -2298,14 +2310,18 @@ PYBIND11_MODULE(slughorn, m) {
 		py::class_<slughorn::nanosvg::ShapeRule>(nanosvg, "ShapeRule")
 			.def(py::init([](
 				const std::string& pattern,
-				slughorn::nanosvg::ShapePolicy policy
+				slughorn::nanosvg::ShapePolicy policy,
+				std::optional<slughorn::Atlas::ShapeInfo::Origin> origin
 			) {
-				return slughorn::nanosvg::ShapeRule{std::regex(pattern), policy};
+				return slughorn::nanosvg::ShapeRule{std::regex(pattern), policy, origin};
 			}),
-			"id"_a, "policy"_a=slughorn::nanosvg::ShapePolicy::Default,
+			"id"_a,
+			"policy"_a=slughorn::nanosvg::ShapePolicy::Default,
+			"origin"_a=py::none(),
 			"id is a regex matched against each SVG shape's id attribute.\n"
 			"policy controls whether matched shapes are force-included, excluded,\n"
-			"or stored as geometry-only (curves in atlas, no CompositeShape layer).");
+			"or stored as geometry-only (curves in atlas, no CompositeShape layer).\n"
+			"origin overrides LoadConfig.origin for matched shapes (None = inherit).");
 
 		nanosvg.def("load_file",
 			[](
@@ -2314,9 +2330,11 @@ PYBIND11_MODULE(slughorn, m) {
 				slughorn::KeyIterator& keys,
 				slug_t dpi,
 				std::optional<slughorn::nanosvg::LogCallback> log,
-				std::vector<slughorn::nanosvg::ShapeRule> rules
+				std::vector<slughorn::nanosvg::ShapeRule> rules,
+				bool autoMetrics,
+				slughorn::Atlas::ShapeInfo::Origin origin
 			) {
-				auto config = detail::makeNanosvgLoadConfig(log);
+				auto config = detail::makeNanosvgLoadConfig(log, autoMetrics, origin);
 
 				config.rules = std::move(rules);
 
@@ -2328,12 +2346,18 @@ PYBIND11_MODULE(slughorn, m) {
 			"dpi"_a=96.0f,
 			"log"_a=py::none(),
 			"rules"_a=std::vector<slughorn::nanosvg::ShapeRule>(),
+			"auto_metrics"_a=true,
+			"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 			"Parse an SVG file and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
 			"omit to print to stderr.\n"
-			"rules is a list of ShapeRule objects applied in order; first match wins."
+			"rules is a list of ShapeRule objects applied in order; first match wins.\n"
+			"auto_metrics: when True (default) derive shape metrics from curve bbox.\n"
+			"Coordinates are always normalized to [0,1] em-space (scale = 1/image_width).\n"
+			"Multiply layer.transform.x/y by cfg.width/cfg.height to recover authoring coords.\n"
+			"origin: global origin for all shapes (overridden per-shape by ShapeRule.origin)."
 		);
 
 		nanosvg.def("load_string",
@@ -2343,9 +2367,11 @@ PYBIND11_MODULE(slughorn, m) {
 				slughorn::KeyIterator& keys,
 				slug_t dpi,
 				std::optional<slughorn::nanosvg::LogCallback> log,
-				std::vector<slughorn::nanosvg::ShapeRule> rules
+				std::vector<slughorn::nanosvg::ShapeRule> rules,
+				bool autoMetrics,
+				slughorn::Atlas::ShapeInfo::Origin origin
 			) {
-				auto config = detail::makeNanosvgLoadConfig(log);
+				auto config = detail::makeNanosvgLoadConfig(log, autoMetrics, origin);
 
 				config.rules = std::move(rules);
 
@@ -2357,12 +2383,18 @@ PYBIND11_MODULE(slughorn, m) {
 			"dpi"_a=96.0f,
 			"log"_a=py::none(),
 			"rules"_a=std::vector<slughorn::nanosvg::ShapeRule>(),
+			"auto_metrics"_a=true,
+			"origin"_a=slughorn::Atlas::ShapeInfo::Origin{},
 			"Parse an SVG string and pack every filled shape into atlas.\n"
 			"keys is advanced in-place; pass the same KeyIterator to subsequent calls\n"
 			"to pack multiple SVGs into the same atlas without key collisions.\n"
 			"log(level, msg) is called for warnings (level=1) and errors (level=2); "
 			"omit to print to stderr.\n"
-			"rules is a list of ShapeRule objects applied in order; first match wins."
+			"rules is a list of ShapeRule objects applied in order; first match wins.\n"
+			"auto_metrics: when True (default) derive shape metrics from curve bbox.\n"
+			"Coordinates are always normalized to [0,1] em-space (scale = 1/image_width).\n"
+			"Multiply layer.transform.x/y by cfg.width/cfg.height to recover authoring coords.\n"
+			"origin: global origin for all shapes (overridden per-shape by ShapeRule.origin)."
 		);
 	}
 #endif
