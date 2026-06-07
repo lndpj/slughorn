@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-slughorn_editor.py -- PySide6 SVG Layer Viewer for osgSlug curve debugging.
+slughorned -- PySide6 SVG Layer Viewer for slughorn curve debugging.
 
 Uses pure QPainter software rendering (no QGraphicsView / no OpenGL).
 
 Usage:
-	python3 slughorn_editor.py layer0.svg layer1.svg ... layer6.svg
-	python3 slughorn_editor.py path/to/svg_directory/
-	python3 slughorn_editor.py font.slug
+	slughorned layer0.svg layer1.svg ... layer6.svg
+	slughorned path/to/svg_directory/
+	slughorned font.slug
 
 Keys / Controls:
-	Left/Right or A/D	-- previous / next layer
+	Left/Right or A/D -- previous / next layer
 	Mouse wheel -- zoom in/out (anchored at cursor)
 	Click + drag -- pan
 	F -- fit to window
@@ -29,9 +29,11 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Force software rendering BEFORE any Qt objects are created.
 # ---------------------------------------------------------------------------
-os.environ["QT_QUICK_BACKEND"] = "software"
-os.environ["QMLSCENE_DEVICE"] = "softwarecontext"
-os.environ["QSG_RHI_BACKEND"] = "sw"
+os.environ.update({
+	"QT_QUICK_BACKEND": "software",
+	"QMLSCENE_DEVICE": "softwarecontext",
+	"QSG_RHI_BACKEND": "sw"
+})
 
 from PySide6.QtCore import Qt, QByteArray, QPointF, QRectF
 from PySide6.QtGui import (
@@ -226,7 +228,7 @@ class SvgViewport(QWidget):
 class SlugSvgViewer(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("osgSlug -- SVG Layer Viewer")
+		self.setWindowTitle("slughorned - canvas.slug")
 		self.resize(1280, 900)
 
 		self._entries: list[tuple[str, str | bytes]] = []
@@ -260,8 +262,8 @@ class SlugSvgViewer(QMainWindow):
 		left_layout.addWidget(self._layer_list)
 
 		nav = QHBoxLayout()
-		self._btn_prev = QPushButton("? Prev")
-		self._btn_next = QPushButton("Next ?")
+		self._btn_prev = QPushButton("← Prev")
+		self._btn_next = QPushButton("Next →")
 		nav.addWidget(self._btn_prev)
 		nav.addWidget(self._btn_next)
 		left_layout.addLayout(nav)
