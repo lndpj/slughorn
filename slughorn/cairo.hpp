@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <utility>
 
 // ================================================================================================
@@ -60,11 +61,15 @@ namespace cairo {
 // @p scale is applied uniformly to every coordinate after the local shift. Use it to normalize path
 // coordinates into the em-square slughorn expects (e.g. 1/100 if your path is built in a 100-unit
 // space). Pass 1.0 if coordinates are already normalized.
+// When autoMetrics=false and canvasExtent={widthEm, heightEm} is supplied, the returned ShapeInfo
+// has its band metrics (bearingX/Y, width, height, autoMetrics) pre-populated. Callers that use
+// decomposePath directly and then call atlas.addShape() should pass canvasExtent here.
 std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	cairo_t* cr,
 	slug_t scale=1_cv,
+	Atlas::ShapeInfo::Origin origin={},
 	bool autoMetrics=true,
-	Atlas::ShapeInfo::Origin origin={}
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent={}
 );
 
 // Decompose the current path on @p cr and register the result in @p atlas under @p key.
@@ -73,13 +78,17 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 // for correct composite positioning.
 //
 // Returns a zero Transform and does NOT call addShape if the path is empty.
+//
+// When autoMetrics=false, supply canvasExtent={widthEm, heightEm} to declare the band extent.
+// Without it, loadShape silently falls back to tight-bbox behavior (autoMetrics=true).
 Transform loadShape(
 	cairo_t* cr,
 	Atlas& atlas,
 	Key key,
 	slug_t scale=1_cv,
+	Atlas::ShapeInfo::Origin origin={},
 	bool autoMetrics=true,
-	Atlas::ShapeInfo::Origin origin={}
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent={}
 );
 
 }
@@ -93,7 +102,13 @@ Transform loadShape(
 namespace slughorn {
 namespace cairo {
 
-std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(
+	cairo_t* cr,
+	slug_t scale,
+	Atlas::ShapeInfo::Origin origin,
+	bool autoMetrics,
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent
+) {
 	double x1, y1, x2, y2;
 
 	cairo_path_extents(cr, &x1, &y1, &x2, &y2);
@@ -154,6 +169,7 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, 
 		infoOrigin.x = origin.x * scale - offX;
 		infoOrigin.y = origin.y * scale - offY;
 	}
+
 	else if(origin.type == Atlas::ShapeInfo::Origin::Type::Custom) {
 		infoOrigin.x = origin.x * scale;
 		infoOrigin.y = origin.y * scale;
@@ -174,15 +190,25 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(cairo_t* cr, slug_t scale, 
 	info.curves = std::move(curves);
 	info.origin = infoOrigin;
 
+	if(!autoMetrics && canvasExtent) {
+		info.bearingX = 0_cv;
+		info.bearingY = canvasExtent->second;
+		info.width = canvasExtent->first;
+		info.height = canvasExtent->second;
+		info.autoMetrics = false;
+	}
+
 	return { std::move(info), transform };
 }
 
-Transform loadShape(cairo_t* cr, Atlas& atlas, Key key, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
-	auto [info, transform] = decomposePath(cr, scale, autoMetrics, origin);
+Transform loadShape(cairo_t* cr, Atlas& atlas, Key key, slug_t scale, Atlas::ShapeInfo::Origin origin, bool autoMetrics, std::optional<std::pair<slug_t, slug_t>> canvasExtent) {
+	// Fall back to tight-bbox if autoMetrics=false but no canvas extent is declared.
+	const bool effectiveShift = autoMetrics || !canvasExtent.has_value();
+	auto [info, transform] = decomposePath(cr, scale, origin, effectiveShift, canvasExtent);
 
 	if(info.curves.empty()) return {};
 
-	info.autoMetrics = autoMetrics;
+	if(effectiveShift) info.autoMetrics = true;
 
 	atlas.addShape(key, info);
 

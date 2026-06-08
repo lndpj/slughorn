@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <utility>
 
 // ================================================================================================
@@ -69,11 +70,16 @@ namespace skia {
 //
 // Returns a ShapeInfo with an empty Curves vector and a zero Transform if @p path is empty or
 // has a zero-size bounding box.
+//
+// When autoMetrics=false and canvasExtent={widthEm, heightEm} is supplied, the returned ShapeInfo
+// has its band metrics (bearingX/Y, width, height, autoMetrics) pre-populated. Callers that use
+// decomposePath directly and then call atlas.addShape() should pass canvasExtent here.
 std::pair<Atlas::ShapeInfo, Transform> decomposePath(
 	const SkPath& path,
 	slug_t scale=1_cv,
+	Atlas::ShapeInfo::Origin origin={},
 	bool autoMetrics=true,
-	Atlas::ShapeInfo::Origin origin={}
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent={}
 );
 
 // ================================================================================================
@@ -99,7 +105,8 @@ SkPath strokeToFill(
 // Decompose @p path and register the result in @p atlas under @p key.
 //
 // If autoMetrics is true (default) slughorn derives width/height/bearing/advance from the curve
-// bounding box. Set it to false and fill in the ShapeInfo fields below if you need precise control.
+// bounding box. When autoMetrics=false, supply canvasExtent={widthEm, heightEm} to declare the
+// band extent explicitly; without it, loadShape falls back to tight-bbox behavior.
 //
 // Returns the local-origin offset as a Transform (see decomposePath). Store it in Layer::transform
 // for correct composite positioning.
@@ -111,8 +118,9 @@ Transform loadShape(
 	Atlas& atlas,
 	uint32_t key,
 	slug_t scale=1_cv,
+	Atlas::ShapeInfo::Origin origin={},
 	bool autoMetrics=true,
-	Atlas::ShapeInfo::Origin origin={}
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent={}
 );
 
 // Convenience: stroke-expand then load. Equivalent to: loadShape(strokeToFill(path, strokeWidth,
@@ -168,7 +176,7 @@ static void splitConic(
 
 }
 
-std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t scale, bool autoMetrics, Atlas::ShapeInfo::Origin origin) {
+std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t scale, Atlas::ShapeInfo::Origin origin, bool autoMetrics, std::optional<std::pair<slug_t, slug_t>> canvasExtent) {
 	if(path.isEmpty()) return { {}, {} };
 
 	const SkRect bounds = path.getBounds();
@@ -289,6 +297,14 @@ std::pair<Atlas::ShapeInfo, Transform> decomposePath(const SkPath& path, slug_t 
 	info.curves = std::move(curves);
 	info.origin = infoOrigin;
 
+	if(!autoMetrics && canvasExtent) {
+		info.bearingX = 0_cv;
+		info.bearingY = canvasExtent->second;
+		info.width = canvasExtent->first;
+		info.height = canvasExtent->second;
+		info.autoMetrics = false;
+	}
+
 	return { std::move(info), transform };
 }
 
@@ -313,14 +329,17 @@ Transform loadShape(
 	Atlas& atlas,
 	uint32_t key,
 	slug_t scale,
+	Atlas::ShapeInfo::Origin origin,
 	bool autoMetrics,
-	Atlas::ShapeInfo::Origin origin
+	std::optional<std::pair<slug_t, slug_t>> canvasExtent
 ) {
-	auto [info, transform] = decomposePath(path, scale, autoMetrics, origin);
+	// Fall back to tight-bbox if autoMetrics=false but no canvas extent is declared.
+	const bool effectiveShift = autoMetrics || !canvasExtent.has_value();
+	auto [info, transform] = decomposePath(path, scale, origin, effectiveShift, canvasExtent);
 
 	if(info.curves.empty()) return {};
 
-	info.autoMetrics = autoMetrics;
+	if(effectiveShift) info.autoMetrics = true;
 
 	atlas.addShape(key, info);
 
@@ -337,7 +356,7 @@ Transform loadStrokedShape(
 	SkPaint::Cap cap,
 	Atlas::ShapeInfo::Origin origin
 ) {
-	return loadShape(strokeToFill(path, strokeWidth, join, cap), atlas, key, scale, true, origin);
+	return loadShape(strokeToFill(path, strokeWidth, join, cap), atlas, key, scale, origin);
 }
 
 }
