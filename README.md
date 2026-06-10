@@ -1,4 +1,4 @@
-<table>
+<table border="0">
 <tr>
 <td><img src="logo.svg" width="300" alt="slughorn"></td>
 <td>
@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/5ca6563e-a7d3-44df-9800-beb8716efcad
 
 `slughorn` is modern C++20 library implementing the recent OSS release of the
 "Slug" GPU vector graphics rendering technique by [Eric Lengyel](https://terathon.com/blog/).
-It makes no assumptions about what graphics environment being used (OpenGL,
+It makes no assumptions about what graphics environment is being used (OpenGL,
 Vulkan, WebGL, WebGPU, DirectX, etc) and instead focuses *only* on simplifying
 the process of creating/ingesting vector data from various backends--or,
 alternatively, by using an HTML "Canvas-like" API directly in code--so it can be
@@ -39,7 +39,7 @@ format.
 In addition to the above backends, `slughorn` provides a "native" API for
 authoring vector graphics inspired by the standard HTML `Canvas` element.
 
-Adding support for other backends is generally as easy using a single helper
+Adding support for other backends is generally as easy as using a single helper
 class: `slughorn::CurveDecomposer`. If your vector data can be reduced into
 simple quadratic Bezier curves, `slughorn` can make it render.
 
@@ -70,7 +70,8 @@ Demonstrates loading **COLRv0** and **COLRv1** emojis using the `slughorn-freety
 backend. Each layer of the emoji is composited into its own quad and positioned relative
 to the base.
 
-*NOTE*: Not all features of **COLRv1** are currently supported, but will be soon.
+slughorn supports all of the advanced **COLRv1** features, including gradients
+and transforms.
 
 </td>
 </tr>
@@ -85,8 +86,8 @@ to the base.
 
 **Animated Glyphs**
 
-Shader-driven animation applied to Slug-rendered glyph geometry, accomplished by
-adjusting the output positions in the vertex shader.
+Simple, shader-driven animation applied to Slug-rendered glyph geometry,
+accomplished by adjusting the output positions in the vertex shader.
 
 </td>
 </tr>
@@ -159,6 +160,39 @@ The same scene as the 2D Projection above, but with a traditional perspective-st
 <tr>
 <td align="center">
 
+![HUD](https://ambaince.com/osgSlug/hud.png)
+
+</td>
+<td>
+
+**HUD**
+
+slughorn is perfect for HUD elements of any kind in 2D, 3D, or somewhere
+dynamically in between.
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+[![Animated HUD](https://ambaince.com/osgSlug/animated-hud.webp)](https://ambaince.com/osgSlug/animated-hud.mp4)
+
+</td>
+<td>
+
+**Animated HUD**
+
+Every `Layer` instance within a `CompositeShape` can be individually accessed
+and dynamically modified. When using the *GL4/SSBO* path, updates only require
+changing a small subset of the total GPU memory.
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
 ![Shapes/CompositeShapes](https://ambaince.com/osgSlug/shapes-compositeshapes.png)
 
 </td>
@@ -172,11 +206,27 @@ screenshot demonstrates the `slughorn-canvas.hpp` backend, in addition to showin
 the traditional punch-out effect can be achieved by manually using opposite winding
 directions in order to cut out one closed path from another.
 
-*NOTE*: The `skia` backend is currently the **only** backend that supports a true
-stroke-to-path feature, the jigsaw puzzle piece.
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+[![Mixed Scenes](https://ambaince.com/osgSlug/shapes-compositeshapes-mixed.webp)](https://ambaince.com/osgSlug/shapes-compositeshapes-mixed.mp4)
+
+</td>
+<td>
+
+**Mixed Scenes**
+
+`Shape` instances from different backends can be mixed together in the same
+`CompositeShape`; for example, fonts from the Freetype backend mixed with
+hand-authored content from the native Canvas (to create an animated "card"
+mockup, seen here).
 
 </td>
 </tr>
+
 
 <tr>
 <td align="center">
@@ -215,6 +265,23 @@ backend.
 <tr>
 <td align="center">
 
+[![Text Demo](https://ambaince.com/osgSlug/text.webp)](https://ambaince.com/osgSlug/text.mp4)
+
+</td>
+<td>
+
+**Text**
+
+Text was the original inspiration for Slug, and will always be incredibly well-supported.
+As mentioned above, each glyph in a text layout is nothing more than an instance of
+`Shape`, and can be manipulated in any way you can imagine. :)
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
 [![Mixed Text Demo](https://ambaince.com/osgSlug/text-mix.webp)](https://ambaince.com/osgSlug/text-mix.mp4)
 
 </td>
@@ -232,22 +299,23 @@ character `F` with a simple triangle, which fits seamlessly into the layout proc
 <tr>
 <td align="center">
 
-[![Text Demo](https://ambaince.com/osgSlug/text.webp)](https://ambaince.com/osgSlug/text.mp4)
+![Text Along Path](https://ambaince.com/osgSlug/textpath.png)
 
 </td>
 <td>
 
-**Text**
+**Text Along Path**
 
-Text was the original inspiration for Slug, and will always be incredibly well-supported.
-As mentioned above, each glyph in a text layout is nothing more than an instance of
-`Shape`, and can be manipulated in any way you can imagine. :)
+Individual glyphs can be easily positioned along existing `Path` instances. The
+`slughorn::canvas::Path` object can `sample` at **any position** within a
+supported `Shape` instance.
 
 </td>
 </tr>
+
 </table>
 
-> **Note on demos:** All video demonstrations below are captured from
+> **Note on demos:** All video demonstrations above are captured from
 > [osgSlug](https://github.com/AlphaPixel/osgSlug), the intentionally separate
 > OpenSceneGraph-based testbed developed alongside `slughorn`. `slughorn` itself
 > has no graphics dependencies, and `osgSlug` exists to prove the integration
