@@ -163,6 +163,23 @@ The same scene as the 2D Projection above, but with a traditional perspective-st
 <tr>
 <td align="center">
 
+![Gradients](https://ambaince.com/osgSlug/gradients.png)
+
+</td>
+<td>
+
+**Gradients**
+
+The FreeType, NanoSVG and Canvas backends all fully support linear, radial and
+sweep gradient fills/strokes. Gradients can also be dynamically transformed by
+the GPU during rendering (though their "color stop" values are static).
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
 ![HUD](https://ambaince.com/osgSlug/hud.png)
 
 </td>
