@@ -1601,6 +1601,11 @@ PYBIND11_MODULE(slughorn, m) {
 				},
 				"Access the internal CurveDecomposer to tune tolerance etc."
 			)
+			.def_property("tolerance",
+				&slughorn::canvas::Canvas::getTolerance,
+				&slughorn::canvas::Canvas::setTolerance,
+				"Curve decomposition tolerance (shorthand for decomposer().tolerance)."
+			)
 			.def("path", &slughorn::canvas::Canvas::path,
 				"Return a copy of the internal path. Non-destructive: the canvas path is intact."
 			)

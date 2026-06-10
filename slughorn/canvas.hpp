@@ -822,6 +822,9 @@ public:
 	CurveDecomposer& decomposer() { return _path.decomposer(); }
 	const CurveDecomposer& decomposer() const { return _path.decomposer(); }
 
+	void     setTolerance(slug_t tol) { _path.decomposer().tolerance = tol; }
+	slug_t   getTolerance() const     { return _path.decomposer().tolerance; }
+
 	// -------------------------------------------------------------------------
 	// Path snapshot
 	//

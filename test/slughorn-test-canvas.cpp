@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
 	// or stroke() is called without an explicit key.
 	slughorn::canvas::Canvas canvas(atlas, slughorn::KeyIterator("s"));
 
-	canvas.decomposer().tolerance = slughorn::TOLERANCE_BALANCED;
+	canvas.setTolerance(slughorn::TOLERANCE_BALANCED);
 
 	// ============================================================================================
 	// Pattern 1: fill(color) auto-key shape -> finalize(key) names composite.
