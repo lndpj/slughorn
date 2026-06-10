@@ -230,6 +230,22 @@ mockup, seen here).
 </td>
 </tr>
 
+<tr>
+<td align="center">
+
+[![Animated Scenes](https://ambaince.com/osgSlug/shapes-compositeshapes-animation.webp)](https://ambaince.com/osgSlug/shapes-compositeshapes-animation.mp4)
+
+</td>
+<td>
+
+**Animated Scenes**
+
+A `CompositeShape` scene can reference and animate any of the participating
+`Shape` instances within it. In this example, a single "pill" shape is repeated
+12 times, each being animated using a different time offset.
+
+</td>
+</tr>
 
 <tr>
 <td align="center">
