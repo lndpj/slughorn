@@ -1,4 +1,13 @@
-<p align="center"><img src="logo.svg" width="300" alt="slughorn"></p>
+<table>
+<tr>
+<td><img src="logo.svg" width="300" alt="slughorn"></td>
+<td>
+
+https://github.com/user-attachments/assets/5ca6563e-a7d3-44df-9800-beb8716efcad
+
+</td>
+</tr>
+</table>
 
 # slughorn
 
