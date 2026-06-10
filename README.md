@@ -11,6 +11,14 @@ https://github.com/user-attachments/assets/5ca6563e-a7d3-44df-9800-beb8716efcad
 
 # slughorn
 
+<div align="center">
+
+[![Website](https://img.shields.io/badge/Website-slughorn.io-4c8ef5?style=for-the-badge)](https://slughorn.io)
+[![User Guide](https://img.shields.io/badge/User_Guide-PDF-dc2626?style=for-the-badge&logo=adobeacrobatreader&logoColor=white)](https://slughorn.io/UserGuide.pdf)
+[![What's Next](https://img.shields.io/badge/What's_Next-PDF-16a34a?style=for-the-badge&logo=adobeacrobatreader&logoColor=white)](https://slughorn.io/WhatsNext.pdf)
+
+</div>
+
 `slughorn` is modern C++20 library implementing the recent OSS release of the
 "Slug" GPU vector graphics rendering technique by [Eric Lengyel](https://terathon.com/blog/).
 It makes no assumptions about what graphics environment is being used (OpenGL,
@@ -31,10 +39,10 @@ format.
 
 # Current Supported Backends
 
+- FreeType
 - NanoSVG
 - Skia
 - Cairo
-- FreeType
 
 In addition to the above backends, `slughorn` provides a "native" API for
 authoring vector graphics inspired by the standard HTML `Canvas` element.
@@ -42,11 +50,6 @@ authoring vector graphics inspired by the standard HTML `Canvas` element.
 Adding support for other backends is generally as easy as using a single helper
 class: `slughorn::CurveDecomposer`. If your vector data can be reduced into
 simple quadratic Bezier curves, `slughorn` can make it render.
-
-## Supported Backends: FreeType
-
-The FreeType2 backend supports standard OTF/TTF glyphs, all of the COLRv0
-specification, and a large portion of the COLRv1 spec!
 
 # Demos
 
@@ -59,7 +62,7 @@ specification, and a large portion of the COLRv1 spec!
 <tr>
 <td align="center">
 
-![Emoji Demo](https://ambaince.com/osgSlug/emojis.png)
+![Emoji](https://ambaince.com/osgSlug/emoji.png)
 
 </td>
 <td>
@@ -79,7 +82,7 @@ and transforms.
 <tr>
 <td align="center">
 
-[![Animated Glyphs Demo](https://ambaince.com/osgSlug/glyph-animate.webp)](https://ambaince.com/osgSlug/glyph-animate.mp4)
+[![Animated Glyphs](https://ambaince.com/osgSlug/glyph-animate.webp)](https://ambaince.com/osgSlug/glyph-animate.mp4)
 
 </td>
 <td>
@@ -95,7 +98,7 @@ accomplished by adjusting the output positions in the vertex shader.
 <tr>
 <td align="center">
 
-[![Layer Effects Demo](https://ambaince.com/osgSlug/logo.webp)](https://ambaince.com/osgSlug/logo.mp4)
+[![Layer Effects](https://ambaince.com/osgSlug/logo.webp)](https://ambaince.com/osgSlug/logo.mp4)
 
 </td>
 <td>
@@ -113,7 +116,7 @@ finally an animated GLSL algorithmic fill.
 <tr>
 <td align="center">
 
-[![Morphing Demo](https://ambaince.com/osgSlug/morph.webp)](https://ambaince.com/osgSlug/morph.mp4)
+[![Morphing](https://ambaince.com/osgSlug/morph.webp)](https://ambaince.com/osgSlug/morph.mp4)
 
 </td>
 <td>
@@ -130,7 +133,7 @@ variable.
 <tr>
 <td align="center">
 
-![2D Demo](https://ambaince.com/osgSlug/project2d.png)
+![2D](https://ambaince.com/osgSlug/project2d.png)
 
 </td>
 <td>
@@ -145,7 +148,7 @@ The standard orthographic-style 2D placement/rendering.
 <tr>
 <td align="center">
 
-![3D Demo](https://ambaince.com/osgSlug/project3d.png)
+![3D](https://ambaince.com/osgSlug/project3d.png)
 
 </td>
 <td>
@@ -220,7 +223,7 @@ directions in order to cut out one closed path from another.
 **Mixed Scenes**
 
 `Shape` instances from different backends can be mixed together in the same
-`CompositeShape`; for example, fonts from the Freetype backend mixed with
+`CompositeShape`; for example, fonts from the FreeType backend mixed with
 hand-authored content from the native Canvas (to create an animated "card"
 mockup, seen here).
 
@@ -247,7 +250,7 @@ Slug is not restricted to simple quads; any 3D object or mesh can be assigned co
 <tr>
 <td align="center">
 
-![SVG Demo](https://ambaince.com/osgSlug/svgs.png)
+![SVG](https://ambaince.com/osgSlug/svgs.png)
 
 </td>
 <td>
@@ -265,7 +268,7 @@ backend.
 <tr>
 <td align="center">
 
-[![Text Demo](https://ambaince.com/osgSlug/text.webp)](https://ambaince.com/osgSlug/text.mp4)
+[![Text](https://ambaince.com/osgSlug/text.webp)](https://ambaince.com/osgSlug/text.mp4)
 
 </td>
 <td>
@@ -282,7 +285,7 @@ As mentioned above, each glyph in a text layout is nothing more than an instance
 <tr>
 <td align="center">
 
-[![Mixed Text Demo](https://ambaince.com/osgSlug/text-mix.webp)](https://ambaince.com/osgSlug/text-mix.mp4)
+[![Mixed Text](https://ambaince.com/osgSlug/text-mix.webp)](https://ambaince.com/osgSlug/text-mix.mp4)
 
 </td>
 <td>
