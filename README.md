@@ -94,7 +94,7 @@ simple quadratic Bezier curves, `slughorn` can make it render.
 <tr>
 <td align="center">
 
-![Emoji](https://ambaince.com/osgSlug/emoji.png)
+![Emoji](https://slughorn.io/github/emoji.png)
 
 </td>
 <td>
@@ -114,7 +114,7 @@ and transforms.
 <tr>
 <td align="center">
 
-[![Animated Glyphs](https://ambaince.com/osgSlug/glyph-animate.webp)](https://ambaince.com/osgSlug/glyph-animate.mp4)
+[![Animated Glyphs](https://slughorn.io/github/glyph-animate.webp)](https://slughorn.io/github/glyph-animate.mp4)
 
 </td>
 <td>
@@ -130,7 +130,7 @@ accomplished by adjusting the output positions in the vertex shader.
 <tr>
 <td align="center">
 
-[![Layer Effects](https://ambaince.com/osgSlug/logo.webp)](https://ambaince.com/osgSlug/logo.mp4)
+[![Layer Effects](https://slughorn.io/github/logo.webp)](https://slughorn.io/github/logo.mp4)
 
 </td>
 <td>
@@ -148,7 +148,7 @@ finally an animated GLSL algorithmic fill.
 <tr>
 <td align="center">
 
-[![Morphing](https://ambaince.com/osgSlug/morph.webp)](https://ambaince.com/osgSlug/morph.mp4)
+[![Morphing](https://slughorn.io/github/morph.webp)](https://slughorn.io/github/morph.mp4)
 
 </td>
 <td>
@@ -165,7 +165,7 @@ variable.
 <tr>
 <td align="center">
 
-![2D](https://ambaince.com/osgSlug/project2d.png)
+![2D](https://slughorn.io/github/project2d.png)
 
 </td>
 <td>
@@ -180,7 +180,7 @@ The standard orthographic-style 2D placement/rendering.
 <tr>
 <td align="center">
 
-![3D](https://ambaince.com/osgSlug/project3d.png)
+![3D](https://slughorn.io/github/project3d.png)
 
 </td>
 <td>
@@ -195,7 +195,7 @@ The same scene as the 2D Projection above, but with a traditional perspective-st
 <tr>
 <td align="center">
 
-![Gradients](https://ambaince.com/osgSlug/gradients.png)
+![Gradients](https://slughorn.io/github/gradients.png)
 
 </td>
 <td>
@@ -212,7 +212,7 @@ the GPU during rendering (though their "color stop" values are static).
 <tr>
 <td align="center">
 
-![HUD](https://ambaince.com/osgSlug/hud.png)
+![HUD](https://slughorn.io/github/hud.png)
 
 </td>
 <td>
@@ -228,7 +228,7 @@ dynamically in between.
 <tr>
 <td align="center">
 
-[![Animated HUD](https://ambaince.com/osgSlug/animated-hud.webp)](https://ambaince.com/osgSlug/animated-hud.mp4)
+[![Animated HUD](https://slughorn.io/github/animated-hud.webp)](https://slughorn.io/github/animated-hud.mp4)
 
 </td>
 <td>
@@ -245,7 +245,7 @@ changing a small subset of the total GPU memory.
 <tr>
 <td align="center">
 
-![Shapes/CompositeShapes](https://ambaince.com/osgSlug/shapes-compositeshapes.png)
+![Shapes/CompositeShapes](https://slughorn.io/github/shapes-compositeshapes.png)
 
 </td>
 <td>
@@ -264,7 +264,7 @@ directions in order to cut out one closed path from another.
 <tr>
 <td align="center">
 
-[![Mixed Scenes](https://ambaince.com/osgSlug/shapes-compositeshapes-mixed.webp)](https://ambaince.com/osgSlug/shapes-compositeshapes-mixed.mp4)
+[![Mixed Scenes](https://slughorn.io/github/shapes-compositeshapes-mixed.webp)](https://slughorn.io/github/shapes-compositeshapes-mixed.mp4)
 
 </td>
 <td>
@@ -282,7 +282,7 @@ mockup, seen here).
 <tr>
 <td align="center">
 
-[![Animated Scenes](https://ambaince.com/osgSlug/shapes-compositeshapes-animation.webp)](https://ambaince.com/osgSlug/shapes-compositeshapes-animation.mp4)
+[![Animated Scenes](https://slughorn.io/github/shapes-compositeshapes-animation.webp)](https://slughorn.io/github/shapes-compositeshapes-animation.mp4)
 
 </td>
 <td>
@@ -299,7 +299,7 @@ A `CompositeShape` scene can reference and animate any of the participating
 <tr>
 <td align="center">
 
-[![3D Objects](https://ambaince.com/osgSlug/sphere3d.webp)](https://ambaince.com/osgSlug/sphere3d.mp4)
+[![3D Objects](https://slughorn.io/github/sphere3d.webp)](https://slughorn.io/github/sphere3d.mp4)
 
 </td>
 <td>
@@ -315,7 +315,7 @@ Slug is not restricted to simple quads; any 3D object or mesh can be assigned co
 <tr>
 <td align="center">
 
-![SVG](https://ambaince.com/osgSlug/svgs.png)
+![SVG](https://slughorn.io/github/svgs.png)
 
 </td>
 <td>
@@ -334,7 +334,7 @@ been implemented.
 <tr>
 <td align="center">
 
-[![Text](https://ambaince.com/osgSlug/text.webp)](https://ambaince.com/osgSlug/text.mp4)
+[![Text](https://slughorn.io/github/text.webp)](https://slughorn.io/github/text.mp4)
 
 </td>
 <td>
@@ -351,7 +351,7 @@ As mentioned above, each glyph in a text layout is nothing more than an instance
 <tr>
 <td align="center">
 
-[![Mixed Text](https://ambaince.com/osgSlug/text-mix.webp)](https://ambaince.com/osgSlug/text-mix.mp4)
+[![Mixed Text](https://slughorn.io/github/text-mix.webp)](https://slughorn.io/github/text-mix.mp4)
 
 </td>
 <td>
@@ -368,7 +368,7 @@ character `F` with a simple triangle, which fits seamlessly into the layout proc
 <tr>
 <td align="center">
 
-![Text Along Path](https://ambaince.com/osgSlug/textpath.png)
+![Text Along Path](https://slughorn.io/github/textpath.png)
 
 </td>
 <td>
