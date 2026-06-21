@@ -660,7 +660,7 @@ CompositeShape loadImage(
 			.color = color,
 			.transform = *transform,
 			.gradientId = gradientId,
-			.visible = !geometryOnly
+			.drawMode = geometryOnly ? DrawMode::Geometry : DrawMode::Visible
 		};
 
 		composite.layers.push_back(layer);

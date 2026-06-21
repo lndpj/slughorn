@@ -17,7 +17,7 @@
 
 inline constexpr uint8_t SLUGHORN_VERSION_MAJOR = 0;
 inline constexpr uint8_t SLUGHORN_VERSION_MINOR = 0;
-inline constexpr uint8_t SLUGHORN_VERSION_PATCH = 1;
+inline constexpr uint8_t SLUGHORN_VERSION_PATCH = 2;
 
 namespace slughorn {
 
@@ -307,6 +307,42 @@ struct KeyIterator {
 	bool force = false;
 };
 
+enum class DrawMode: uint8_t {
+	Visible = 0, // normal render - must stay 0 forever (backward compat)
+	Hidden = 1, // in atlas, no draw call; temporary toggle
+	Geometry = 2, // curves in atlas, no quad ever; path source for sampling/animation
+	Mask = 3, // stencil source for subsequent layers (reserved; lands with masking)
+};
+
+enum class BlendMode: uint8_t {
+	// Porter-Duff
+	SrcOver = 0, // default; normal alpha composite - must stay 0 forever (backward compat)
+	Src = 1,
+	Dst = 2,
+	SrcIn = 3,
+	DstIn = 4,
+	SrcOut = 5,
+	DstOut = 6,
+	SrcAtop = 7,
+	DstAtop = 8,
+	Xor = 9,
+	Clear = 10,
+	DstOver = 11,
+
+	// Photoshop-style (require framebuffer read - handled via GL_KHR_blend_equation_advanced)
+	Multiply = 20,
+	Screen = 21,
+	Overlay = 22,
+	Darken = 23,
+	Lighten = 24,
+	ColorDodge = 25,
+	ColorBurn = 26,
+	HardLight = 27,
+	SoftLight = 28,
+	Difference = 29,
+	Exclusion = 30
+};
+
 // ================================================================================================
 // Layer
 //
@@ -339,9 +375,11 @@ struct Layer {
 	// use setAutoMetrics(false) so that em-coords stay exactly in [0,1] for GPU tiling.
 	slug_t expand = 0.01_cv;
 
-	// When false the layer is excluded from rendering but still present in CompositeShape::layers.
-	// Used by GeometryOnly shapes so their transform is accessible without a separate lookup.
-	bool visible = true;
+	// TODO: Explain this more, once it settles.
+	DrawMode drawMode = DrawMode::Visible;
+
+	// TODO: Explain this more TOO, once it settles.
+	BlendMode blendMode = BlendMode::SrcOver;
 };
 
 // ================================================================================================
@@ -1551,7 +1589,8 @@ inline std::ostream& operator<<(std::ostream& os, const Layer& l) {
 		<< " effectId=" << l.effectId
 		<< " gradientId=" << l.gradientId
 		<< " expand=" << l.expand
-		<< (l.visible ? "" : " [geometry-only]") << ")"
+		<< " drawMode=" << static_cast<int>(l.drawMode)
+		<< " blendMode=" << static_cast<int>(l.blendMode) << ")"
 	;
 }
 

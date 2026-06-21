@@ -517,6 +517,41 @@ PYBIND11_MODULE(slughorn, m) {
 	;
 
 	// ============================================================================================
+	// slughorn.DrawMode / slughorn.BlendMode
+	// ============================================================================================
+	py::enum_<slughorn::DrawMode>(m, "DrawMode")
+		.value("Visible", slughorn::DrawMode::Visible)
+		.value("Hidden", slughorn::DrawMode::Hidden)
+		.value("Geometry", slughorn::DrawMode::Geometry)
+		.value("Mask", slughorn::DrawMode::Mask)
+	;
+
+	py::enum_<slughorn::BlendMode>(m, "BlendMode")
+		.value("SrcOver", slughorn::BlendMode::SrcOver)
+		.value("Src", slughorn::BlendMode::Src)
+		.value("Dst", slughorn::BlendMode::Dst)
+		.value("SrcIn", slughorn::BlendMode::SrcIn)
+		.value("DstIn", slughorn::BlendMode::DstIn)
+		.value("SrcOut", slughorn::BlendMode::SrcOut)
+		.value("DstOut", slughorn::BlendMode::DstOut)
+		.value("SrcAtop", slughorn::BlendMode::SrcAtop)
+		.value("DstAtop", slughorn::BlendMode::DstAtop)
+		.value("Xor", slughorn::BlendMode::Xor)
+		.value("Clear", slughorn::BlendMode::Clear)
+		.value("Multiply", slughorn::BlendMode::Multiply)
+		.value("Screen", slughorn::BlendMode::Screen)
+		.value("Overlay", slughorn::BlendMode::Overlay)
+		.value("Darken", slughorn::BlendMode::Darken)
+		.value("Lighten", slughorn::BlendMode::Lighten)
+		.value("ColorDodge", slughorn::BlendMode::ColorDodge)
+		.value("ColorBurn", slughorn::BlendMode::ColorBurn)
+		.value("HardLight", slughorn::BlendMode::HardLight)
+		.value("SoftLight", slughorn::BlendMode::SoftLight)
+		.value("Difference", slughorn::BlendMode::Difference)
+		.value("Exclusion", slughorn::BlendMode::Exclusion)
+	;
+
+	// ============================================================================================
 	// slughorn.Layer
 	//
 	// key, color, transform, effectId - all four fields now present.
@@ -533,7 +568,8 @@ PYBIND11_MODULE(slughorn, m) {
 				uint32_t effectId,
 				uint32_t gradientId,
 				slug_t expand,
-				bool visible
+				slughorn::DrawMode drawMode,
+				slughorn::BlendMode blendMode
 			) {
 				slughorn::Layer layer;
 
@@ -550,7 +586,8 @@ PYBIND11_MODULE(slughorn, m) {
 				layer.effectId = effectId;
 				layer.gradientId = gradientId;
 				layer.expand = expand;
-				layer.visible = visible;
+				layer.drawMode = drawMode;
+				layer.blendMode = blendMode;
 
 				return layer;
 			}),
@@ -561,7 +598,8 @@ PYBIND11_MODULE(slughorn, m) {
 			"effectId"_a=0,
 			"gradientId"_a=0,
 			"expand"_a=0.01_cv,
-			"visible"_a=true
+			"drawMode"_a=slughorn::DrawMode::Visible,
+			"blendMode"_a=slughorn::BlendMode::SrcOver
 		)
 
 		.def_readwrite("key", &slughorn::Layer::key,
@@ -590,10 +628,12 @@ PYBIND11_MODULE(slughorn, m) {
 			"Extra em-space margin added to the quad on each side (default 0.01). "
 			"Set to 0 for shapes authored with canvas.set_auto_metrics(False) so that "
 			"em-coords stay exactly in [0,1] for GPU tiling.")
-		.def_readwrite("visible", &slughorn::Layer::visible,
-			"When False the layer is excluded from rendering but still present in "
-			"CompositeShape.layers. GeometryOnly shapes use visible=False so their "
-			"transform is accessible without a separate lookup.")
+		.def_readwrite("drawMode", &slughorn::Layer::drawMode,
+			"Controls whether/how this layer is rendered. "
+			"Visible=normal draw; Hidden=temporarily suppressed; Geometry=path-source only (no quad).")
+		.def_readwrite("blendMode", &slughorn::Layer::blendMode,
+			"Per-layer compositing mode. SrcOver=normal alpha blend (default). "
+			"Photoshop-style modes (Multiply, Screen, etc.) require GL_KHR_blend_equation_advanced.")
 		.def("__repr__", [](const slughorn::Layer& l) { return streamRepr(l); })
 	;
 

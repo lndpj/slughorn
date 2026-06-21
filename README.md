@@ -49,7 +49,11 @@ intermediate library. As an **adapter**, it bridges existing vector ecosystems (
 Skia, Blend2D, NanoSVG, FreeType) into that same GPU-ready pipeline, letting you keep
 your current authoring workflow while gaining resolution-independent,
 perspective-correct GPU rendering. Most GPU vector renderers want to own the authoring;
-`slughorn` is being developed to support: *bring your own source.*
+`slughorn` is being developed to support *bringing your own*.
+
+The divison is basically: `slughorn` is the "unified source of truth", providing
+data and hints/constraints about **how** that data is used; your *frontend*
+decides what **do** with it.
 
 <div align="center">
 
