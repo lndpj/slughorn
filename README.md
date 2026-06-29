@@ -14,6 +14,22 @@ https://github.com/user-attachments/assets/5ca6563e-a7d3-44df-9800-beb8716efcad
 
 # slughorn
 
+---
+
+<div align="center">
+
+**🔨 What We're Working On** &nbsp;&nbsp;<sub>*Last updated: June 2026*</sub>
+
+| | Feature | Status |
+|:---:|---------|:------:|
+| 🎨 | Full Porter-Duff compositing and blend mode support | ![In Progress](https://img.shields.io/badge/In_Progress-f59e0b?style=flat-square) |
+| 🎭 | MSDF and procedurally-based `CompositeShape` masking | ![In Progress](https://img.shields.io/badge/In_Progress-f59e0b?style=flat-square) |
+| 🔧 | Improved Blend2D and NanoSVG feature support | ![Planned](https://img.shields.io/badge/Planned-6366f1?style=flat-square) |
+
+</div>
+
+---
+
 <div align="center">
 
 [![Website](https://img.shields.io/badge/Website-slughorn.io-4c8ef5?style=for-the-badge)](https://slughorn.io)
